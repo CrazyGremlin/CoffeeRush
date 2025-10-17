@@ -39,15 +39,17 @@
 
     /* Tresen */
     .counter{display:grid; gap:8px; grid-template-columns:repeat(3,minmax(0,1fr))}
-    .slot{min-height:96px; background:#2b201b; border:1px solid #43352d; border-radius:14px; padding:8px; position:relative; display:flex; flex-direction:column; justify-content:flex-start; align-items:flex-start; gap:6px}
+    .slot{min-height:96px; background:#2b201b; border:1px solid #43352d; border-radius:14px; padding:8px 8px 12px; position:relative; display:flex; flex-direction:column; align-items:stretch; gap:6px}
     .slot.empty{border-style:dashed; border-color:#4a3a31; color:var(--muted); align-items:center; justify-content:center; text-align:center; font-size:12px;}
     .slot-placeholder{opacity:0.7;}
-    .drink{display:flex; align-items:center; gap:6px; background:#3a2c25; border:2px solid #695141; border-radius:12px; padding:8px; cursor:pointer; user-select:none}
+    .drink{display:flex; flex-direction:column; align-items:center; gap:6px; width:100%; background:#3a2c25; border:2px solid #695141; border-radius:12px; padding:8px; cursor:pointer; user-select:none; text-align:center}
     .drink.ready{border-color:#6bbf59; box-shadow:0 0 0 2px #6bbf5966 inset}
     .drink.toxic{border-color:#18b56b; box-shadow:0 0 0 2px #18b56b66 inset; background:#20422f}
     .drink.brewing{opacity:.9}
     .cup{font-size:22px}
-    .recipe{display:flex; gap:4px; flex-wrap:wrap}
+    .recipe{display:grid; grid-template-columns:repeat(3, minmax(0,1fr)); gap:4px; width:100%}
+    .recipe .chip{width:100%; display:flex; justify-content:center; font-size:14px; padding:3px 4px}
+    .drink-name{margin-top:auto; font-weight:700; text-align:center; font-size:14px; color:var(--ink)}
     .timer{position:absolute; right:10px; top:10px; font-size:12px; background:#3b2e27; border:1px solid #4a3a31; border-radius:999px; padding:2px 6px; color:var(--muted)}
 
     /* Auswahl & Buttons */
@@ -171,11 +173,11 @@
   const recipesByLength = length => RECIPES.filter(r => r.seq.length === length);
 
   function recipePoolForCustomer(index) {
-    if (index <= 10) {
+    if (index <= 5) {
       const oneStep = recipesByLength(1);
       return oneStep.length ? oneStep : RECIPES;
     }
-    if (index <= 30) {
+    if (index <= 12) {
       const pool = RECIPES.filter(r => r.seq.length <= 2);
       return pool.length ? pool : RECIPES;
     }
@@ -293,11 +295,11 @@
       if (state.heldDrinkId === d.id) drink.classList.add('sel');
       drink.dataset.id = d.id;
       const cup = el('div','cup', d.toxic ? '🧪' : '🧋');
-      const name = el('div','', d.name);
       const rec = el('div','recipe'); d.seq.forEach(k=>{ const ing = INGREDIENTS.find(i=>i.key===k); rec.append(el('span','chip',ing.label)); });
+      const name = el('div','drink-name', d.name);
       const left = d.status==='brewing'? Math.max(0, Math.ceil((d.readyAt - performance.now())/1000)) : 0;
       const timer = el('div','timer', d.status==='brewing'? (left+'s') : 'Bereit');
-      drink.append(cup); drink.append(name); drink.append(rec); slot.append(drink); slot.append(timer);
+      drink.append(cup); drink.append(rec); slot.append(drink); slot.append(name); slot.append(timer);
       dwrap.append(slot);
     }
   }
