@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
-  <title>Coffee Rush — v0.7.0</title>
+  <title>Coffee Rush — v0.7.1</title>
   <meta name="description" content="Erste spielbare Version: One‑Finger Coffee‑Shop‑Spiel. Single‑File, offline‑fähig, keine Server‑Anbindung." />
   <style>
     :root{
@@ -12,7 +12,10 @@
     *{box-sizing:border-box; -webkit-tap-highlight-color: transparent;}
     html,body{height:100%; touch-action:manipulation;}
     body{margin:0; font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, Arial; background: radial-gradient(1200px 800px at 70% -10%, #37291f, var(--bg) 60%); color: var(--ink);}
-    .wrap{max-width:480px; margin:0 auto; padding:12px;}
+    .wrap{max-width:480px; margin:0 auto; padding:12px; min-height:100dvh; display:flex; flex-direction:column;}
+    .wrap>header,
+    .wrap>.section{flex-shrink:0;}
+    .wrap>footer{margin-top:auto;}
     header{display:flex; gap:8px; align-items:center; justify-content:space-between; background:var(--card); border:1px solid #46372f; border-radius:14px; padding:10px 12px; position:sticky; top:0; backdrop-filter:saturate(1.2) blur(6px); z-index:10}
     header .title{font-weight:800; letter-spacing:.2px}
     .stat{display:flex; gap:8px; align-items:center; font-variant-numeric:tabular-nums}
@@ -39,9 +42,9 @@
     .customer.empty:hover{transform:none}
     .customer.empty .slot-placeholder{font-size:12px}
     .customer.cooldown{border-style:dashed; border-color:#4a3a31; color:var(--muted); align-items:center; justify-content:center; text-align:center; cursor:default; pointer-events:none; min-height:188px}
-    .customer.waste{align-items:center; justify-content:center; gap:10px; text-align:center; padding:14px 10px; background:#2b201b; border-style:solid; border-color:#5b4034; min-height:188px}
-    .customer.waste .waste-emoji{font-size:clamp(48px, min(18vw, 18vh), 96px); line-height:1; display:flex; align-items:center; justify-content:center; width:100%;}
-    .customer.waste .waste-label{font-size:12px; color:var(--muted); display:flex; align-items:center; justify-content:center; min-height:2.6em; text-align:center; padding:0 6px;}
+    .customer.waste{align-items:center; justify-content:center; gap:8px; text-align:center; padding:12px 10px; background:#2b201b; border-style:solid; border-color:#5b4034; min-height:188px; max-height:188px; overflow:hidden;}
+    .customer.waste .waste-emoji{font-size:clamp(36px, min(14vw, 14vh), 64px); line-height:1; display:flex; align-items:center; justify-content:center; width:100%;}
+    .customer.waste .waste-label{font-size:12px; color:var(--muted); display:flex; align-items:center; justify-content:center; min-height:2.4em; text-align:center; padding:0 6px;}
     .waste-progress{width:100%; height:8px; background:#3a2c25; border:1px solid #4a3a31; border-radius:999px; overflow:hidden; position:relative;}
     .waste-progress>i{display:block; height:100%; width:0; background:linear-gradient(90deg, var(--accent), #f4c27a); transition:width .12s ease;}
     .avatar{font-size:20px}
@@ -68,8 +71,6 @@
     .heart{transition:transform .12s ease, opacity .12s ease}
     .heart.lost{opacity:0.35; transform:scale(0.9)}
     .heart.inactive{opacity:0.15; transform:scale(0.85)}
-    .bubble{position:absolute; right:8px; top:-8px; background:#3b2e27; border:1px solid #4a3a31; border-radius:999px; padding:2px 8px; font-size:11px; color:var(--muted)}
-
     @keyframes customerEnter {
       0% { transform: translateY(-120%) scale(0.95); opacity:0; }
       65% { opacity:1; }
@@ -175,7 +176,7 @@
 <script>
 (() => {
   // ===== Config =====
-  const VERSION = 'v0.7.0';
+  const VERSION = 'v0.7.1';
   const MAX_CUSTOMERS = 3;
   const MAX_COUNTER_SLOTS = 3;
   const MAX_SELECTION = 3;
@@ -581,7 +582,6 @@
       const inGrace = !c.leaving && nowRender < (c.graceUntil ?? c.start);
       const avatarText = inGrace ? `${c.face} 💰` : c.face;
       const av = el('div','avatar', avatarText); box.append(av);
-      const bub = el('div','bubble', r ? r.name : 'Bestellung'); box.append(bub);
       const order = el('div','order');
       c.orderSeq.slice(0, 3).forEach(k=>{
         const ing = INGREDIENTS.find(i=>i.key===k);
