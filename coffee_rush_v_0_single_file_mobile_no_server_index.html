@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
-  <title>Coffee Rush — v0</title>
+  <title>Coffee Rush — v0.1.0</title>
   <meta name="description" content="Erste spielbare Version: One‑Finger Coffee‑Shop‑Spiel. Single‑File, offline‑fähig, keine Server‑Anbindung." />
   <style>
     :root{
@@ -38,8 +38,10 @@
     .bubble{position:absolute; right:8px; top:-8px; background:#3b2e27; border:1px solid #4a3a31; border-radius:999px; padding:2px 8px; font-size:12px; color:var(--muted)}
 
     /* Tresen */
-    .counter{display:flex; gap:8px}
-    .slot{flex:1; min-height:64px; background:#2b201b; border:1px solid #43352d; border-radius:14px; padding:8px; position:relative}
+    .counter{display:grid; gap:8px; grid-template-columns:repeat(3,minmax(0,1fr))}
+    .slot{min-height:96px; background:#2b201b; border:1px solid #43352d; border-radius:14px; padding:8px; position:relative; display:flex; flex-direction:column; justify-content:flex-start; align-items:flex-start; gap:6px}
+    .slot.empty{border-style:dashed; border-color:#4a3a31; color:var(--muted); align-items:center; justify-content:center; text-align:center; font-size:12px;}
+    .slot-placeholder{opacity:0.7;}
     .drink{display:flex; align-items:center; gap:6px; background:#3a2c25; border:2px solid #695141; border-radius:12px; padding:8px; cursor:pointer; user-select:none}
     .drink.ready{border-color:#6bbf59; box-shadow:0 0 0 2px #6bbf5966 inset}
     .drink.toxic{border-color:#18b56b; box-shadow:0 0 0 2px #18b56b66 inset; background:#20422f}
@@ -66,7 +68,7 @@
 <body>
   <div class="wrap">
     <header>
-      <div class="title">☕ Coffee Rush <span class="hint">v0</span></div>
+      <div class="title">☕ Coffee Rush <span class="hint" id="versionTag"></span></div>
       <div class="stat">
         <span class="pill">Score: <b id="score">0</b></span>
         <span class="pill">Fehler: <b id="mistakes">0</b></span>
@@ -97,12 +99,13 @@
       <div class="hint" style="margin-top:6px">Nicht jedes Rezept hat gleich viele Schritte. Falsche Kombinationen werden abgelehnt.</div>
     </section>
 
-    <footer>Single‑File • Läuft komplett lokal • Touch‑optimiert</footer>
+    <footer>Version <span id="versionFooter"></span> • Single‑File • Läuft komplett lokal • Touch‑optimiert</footer>
   </div>
 
 <script>
 (() => {
   // ===== Config =====
+  const VERSION = 'v0.1.0';
   const MAX_CUSTOMERS = 3;
   const MAX_COUNTER_SLOTS = 3;
   const BASE_PATIENCE = 18_000; // ms
@@ -120,6 +123,11 @@
   // Rezepte: Sequenz + Brew-Time (Sekunden)
   const RECIPES = [
     { id:'espresso', name:'Espresso', seq:['ESP'], time:2 },
+    { id:'milk-solo', name:'Milchglas', seq:['MIL'], time:2 },
+    { id:'choco-solo', name:'Schokobecher', seq:['CHO'], time:2 },
+    { id:'ice-solo', name:'Eisbecher', seq:['ICE'], time:2 },
+    { id:'foam-solo', name:'Milchschaum', seq:['CRM'], time:2 },
+    { id:'sugar-solo', name:'Zuckerportion', seq:['SUG'], time:2 },
     { id:'sweet-espresso', name:'Süßer Espresso', seq:['ESP','SUG'], time:3 },
     { id:'flatwhite', name:'Flat White', seq:['ESP','MIL'], time:3 },
     { id:'mocha-shot', name:'Mokaccino', seq:['ESP','CHO'], time:3 },
@@ -148,6 +156,11 @@
   // ===== Utilities =====
   const $ = sel => document.querySelector(sel);
   const $$ = sel => Array.from(document.querySelectorAll(sel));
+  document.title = `Coffee Rush — ${VERSION}`;
+  const versionLabel = document.getElementById('versionTag');
+  if (versionLabel) versionLabel.textContent = VERSION;
+  const versionFooter = document.getElementById('versionFooter');
+  if (versionFooter) versionFooter.textContent = VERSION;
   const el = (tag, cls, txt) => { const e = document.createElement(tag); if (cls) e.className=cls; if (txt!=null) e.textContent=txt; return e; };
   const uid = () => {
     let id = '';
@@ -268,8 +281,14 @@
 
     // Counter drinks
     const dwrap = $('#counter'); dwrap.innerHTML = '';
-    state.counter.forEach(d => {
-      const slot = el('div','slot');
+    for (let i = 0; i < MAX_COUNTER_SLOTS; i++) {
+      const d = state.counter[i];
+      const slot = el('div','slot' + (d ? '' : ' empty'));
+      if (!d) {
+        slot.append(el('div','slot-placeholder','Freier Platz'));
+        dwrap.append(slot);
+        continue;
+      }
       const drink = el('div','drink '+d.status + (d.toxic?' toxic':''));
       if (state.heldDrinkId === d.id) drink.classList.add('sel');
       drink.dataset.id = d.id;
@@ -280,7 +299,7 @@
       const timer = el('div','timer', d.status==='brewing'? (left+'s') : 'Bereit');
       drink.append(cup); drink.append(name); drink.append(rec); slot.append(drink); slot.append(timer);
       dwrap.append(slot);
-    });
+    }
   }
 
   function updateLiveElements() {
