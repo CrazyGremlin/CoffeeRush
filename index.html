@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
-  <title>Coffee Rush — v0.7.1</title>
+  <title>Coffee Rush — v0.7.2</title>
   <meta name="description" content="Erste spielbare Version: One‑Finger Coffee‑Shop‑Spiel. Single‑File, offline‑fähig, keine Server‑Anbindung." />
   <style>
     :root{
@@ -34,16 +34,16 @@
 
     /* Kundenzeile */
     .row{display:flex; gap:10px; align-items:flex-start}
-    .customer{flex:1; min-width:0; background:#2b201b; border:1px solid #44352d; border-radius:14px; padding:8px; position:relative; transition:transform .08s ease, box-shadow .12s ease; cursor:pointer; display:flex; flex-direction:column; overflow:hidden; min-height:188px}
+    .customer{flex:1; min-width:0; background:#2b201b; border:1px solid #44352d; border-radius:14px; padding:8px; position:relative; transition:transform .08s ease, box-shadow .12s ease; cursor:pointer; display:flex; flex-direction:column; overflow:hidden; min-height:176px}
     .customer.angry{box-shadow:0 0 0 2px #ff8ba766 inset; transform:translateY(-1px)}
     .customer.grumpy{box-shadow:0 0 0 2px #ff8ba733 inset;}
     .customer.can-serve{box-shadow:0 0 0 2px var(--accent) inset;}
-    .customer.empty{border-style:dashed; border-color:#4a3a31; color:var(--muted); align-items:center; justify-content:center; text-align:center; cursor:default; pointer-events:none; min-height:188px}
+    .customer.empty{border-style:dashed; border-color:#4a3a31; color:var(--muted); align-items:center; justify-content:center; text-align:center; cursor:default; pointer-events:none; min-height:176px}
     .customer.empty:hover{transform:none}
     .customer.empty .slot-placeholder{font-size:12px}
-    .customer.cooldown{border-style:dashed; border-color:#4a3a31; color:var(--muted); align-items:center; justify-content:center; text-align:center; cursor:default; pointer-events:none; min-height:188px}
-    .customer.waste{align-items:center; justify-content:center; gap:8px; text-align:center; padding:12px 10px; background:#2b201b; border-style:solid; border-color:#5b4034; min-height:188px; max-height:188px; overflow:hidden;}
-    .customer.waste .waste-emoji{font-size:clamp(36px, min(14vw, 14vh), 64px); line-height:1; display:flex; align-items:center; justify-content:center; width:100%;}
+    .customer.cooldown{border-style:dashed; border-color:#4a3a31; color:var(--muted); align-items:center; justify-content:center; text-align:center; cursor:default; pointer-events:none; min-height:176px}
+    .customer.waste{align-items:center; justify-content:center; gap:8px; text-align:center; padding:12px 10px; background:#2b201b; border-style:solid; border-color:#5b4034; min-height:176px; max-height:176px; overflow:hidden;}
+    .customer.waste .waste-emoji{font-size:clamp(32px, min(12vw, 12vh), 52px); line-height:1; display:flex; align-items:center; justify-content:center; width:100%;}
     .customer.waste .waste-label{font-size:12px; color:var(--muted); display:flex; align-items:center; justify-content:center; min-height:2.4em; text-align:center; padding:0 6px;}
     .waste-progress{width:100%; height:8px; background:#3a2c25; border:1px solid #4a3a31; border-radius:999px; overflow:hidden; position:relative;}
     .waste-progress>i{display:block; height:100%; width:0; background:linear-gradient(90deg, var(--accent), #f4c27a); transition:width .12s ease;}
@@ -176,7 +176,7 @@
 <script>
 (() => {
   // ===== Config =====
-  const VERSION = 'v0.7.1';
+  const VERSION = 'v0.7.2';
   const MAX_CUSTOMERS = 3;
   const MAX_COUNTER_SLOTS = 3;
   const MAX_SELECTION = 3;
@@ -223,6 +223,26 @@
   ];
   const TOXIC = { id:'toxic', name:'Giftgetränk', emoji:'☠️', time:3 };
   const ingredientButtons = [];
+  const view = {
+    customerSlots: Array(MAX_CUSTOMERS).fill(null),
+  };
+
+  function ensureCustomerBox(container, index) {
+    let box = view.customerSlots[index];
+    if (!box) {
+      box = el('div', 'customer');
+      view.customerSlots[index] = box;
+    }
+    const currentChild = container.children[index];
+    if (currentChild !== box) {
+      if (box.parentElement && box.parentElement !== container) {
+        box.parentElement.removeChild(box);
+      }
+      if (currentChild) container.insertBefore(box, currentChild);
+      else container.appendChild(box);
+    }
+    return box;
+  }
 
   // ===== State =====
   const state = {
@@ -532,16 +552,23 @@
     });
 
     // Customers
-    const cwrap = $('#customers'); cwrap.innerHTML = '';
+    const cwrap = $('#customers');
     for (let i = 0; i < MAX_CUSTOMERS; i++) {
       const waste = state.customerWaste[i];
       const c = state.customers[i];
       const cooldownUntil = state.customerCooldowns[i] || 0;
+      const box = ensureCustomerBox(cwrap, i);
+      box.dataset.slot = String(i);
+      delete box.dataset.id;
       if (waste) {
-        const box = el('div','customer waste');
+        if (box.dataset.view !== 'waste') {
+          box.className = 'customer waste';
+        }
+        box.dataset.view = 'waste';
         box.tabIndex = 0;
         box.setAttribute('role','button');
-        box.dataset.slot = String(i);
+        box.removeAttribute('aria-hidden');
+        box.replaceChildren();
         const emoji = el('div','waste-emoji','💩');
         box.append(emoji);
         const label = el('div','waste-label','Aufräumen!');
@@ -552,32 +579,47 @@
         fill.style.width = (pct * 100).toFixed(1) + '%';
         bar.append(fill);
         box.append(bar);
-        cwrap.append(box);
         continue;
       }
       if (!c) {
         const placeholderCls = (cooldownUntil && cooldownUntil > nowRender) ? 'customer cooldown' : 'customer empty';
-        const placeholder = el('div', placeholderCls);
-        placeholder.dataset.slot = String(i);
+        box.className = placeholderCls;
+        box.dataset.view = 'placeholder';
+        box.removeAttribute('role');
+        box.setAttribute('aria-hidden','true');
+        box.removeAttribute('tabindex');
+        box.replaceChildren();
         const placeholderText = (cooldownUntil && cooldownUntil > nowRender)
           ? 'Neuer Kunde unterwegs …'
           : 'Freier Platz';
-        placeholder.append(el('div','slot-placeholder', placeholderText));
-        placeholder.setAttribute('aria-hidden','true');
-        cwrap.append(placeholder);
+        box.append(el('div','slot-placeholder', placeholderText));
         continue;
       }
       const r = RECIPES.find(r=>r.id===c.orderId);
-      const box = el('div','customer'); box.tabIndex = 0;
+      if (box.dataset.view !== 'customer') {
+        box.className = 'customer';
+      }
+      box.dataset.view = 'customer';
+      box.tabIndex = 0;
       box.setAttribute('role','button');
+      box.removeAttribute('aria-hidden');
       box.dataset.id = c.id;
-      box.dataset.slot = String(i);
+      box.replaceChildren();
       if (c.grumpy) box.classList.add('grumpy');
-      if (c.enteringUntil && nowRender < c.enteringUntil) box.classList.add('incoming');
-      else if (c.enteringUntil && nowRender >= c.enteringUntil) delete c.enteringUntil;
+      else box.classList.remove('grumpy');
+      if (c.enteringUntil && nowRender < c.enteringUntil) {
+        box.classList.add('incoming');
+      } else {
+        box.classList.remove('incoming');
+        if (c.enteringUntil && nowRender >= c.enteringUntil) delete c.enteringUntil;
+      }
       if (c.leaving) {
         box.classList.add('leaving');
         if (c.leftAngry) box.classList.add('leaving-angry');
+        else box.classList.remove('leaving-angry');
+      } else {
+        box.classList.remove('leaving');
+        box.classList.remove('leaving-angry');
       }
       const inGrace = !c.leaving && nowRender < (c.graceUntil ?? c.start);
       const avatarText = inGrace ? `${c.face} 💰` : c.face;
@@ -591,7 +633,6 @@
       const orderName = el('div','order-name', r ? r.name : 'Getränk');
       box.append(orderName);
       const patience = el('div','patience'); const fill = el('i'); patience.append(fill); box.append(patience);
-      // Patience percent
       const elapsed = Math.max(0, nowRender - c.start);
       const pct = Math.max(0, Math.min(1, 1 - elapsed / c.patience));
       fill.style.width = (pct*100).toFixed(1)+'%';
@@ -609,6 +650,7 @@
         hearts.append(heart);
       }
       box.append(hearts);
+      box.classList.remove('can-serve');
       if (!c.leaving && state.heldDrinkId) {
         const held = state.counter.find(d => d && d.id === state.heldDrinkId);
         if (held && held.status === 'ready' && !held.toxic) {
@@ -616,7 +658,6 @@
           if (matches) box.classList.add('can-serve');
         }
       }
-      cwrap.append(box);
     }
 
     // Counter drinks
