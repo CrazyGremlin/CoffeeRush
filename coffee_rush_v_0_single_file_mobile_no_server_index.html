@@ -23,14 +23,18 @@
     /* Kundenzeile */
     .row{display:flex; gap:10px; align-items:flex-start}
     .customer{flex:1; min-width:0; background:#2b201b; border:1px solid #44352d; border-radius:14px; padding:8px; position:relative; transition:transform .08s ease, box-shadow .12s ease; cursor:pointer}
-    .customer .serve-btn{margin-top:6px; appearance:none; border:1px solid #6a594f; background:linear-gradient(#806a5c,#5b493f); color:var(--ink); padding:6px 10px; border-radius:10px; font-weight:700; font-size:14px; cursor:pointer}
-    .customer .serve-btn:active{transform:translateY(1px) scale(.99)}
     .customer.angry{box-shadow:0 0 0 2px #ff8ba766 inset; transform:translateY(-1px)}
+    .customer.grumpy{box-shadow:0 0 0 2px #ff8ba733 inset;}
+    .customer.can-serve{box-shadow:0 0 0 2px var(--accent) inset;}
     .avatar{font-size:20px}
     .order{margin-top:6px; display:flex; gap:6px; flex-wrap:wrap}
     .order .it{font-size:18px; background:#3a2c25; border:1px solid #4a3a31; border-radius:8px; padding:2px 6px}
     .patience{height:6px; background:#3a2c25; border:1px solid #4a3a31; border-radius:999px; overflow:hidden; margin-top:6px}
     .patience>i{display:block; height:100%; background:linear-gradient(90deg, var(--ok), #bdf59f)}
+    .hearts{display:flex; gap:2px; margin-top:6px; font-size:16px; line-height:1}
+    .heart{transition:transform .12s ease, opacity .12s ease}
+    .heart.lost{opacity:0.35; transform:scale(0.9)}
+    .heart.inactive{opacity:0.15; transform:scale(0.85)}
     .bubble{position:absolute; right:8px; top:-8px; background:#3b2e27; border:1px solid #4a3a31; border-radius:999px; padding:2px 8px; font-size:12px; color:var(--muted)}
 
     /* Tresen */
@@ -116,6 +120,11 @@
   // Rezepte: Sequenz + Brew-Time (Sekunden)
   const RECIPES = [
     { id:'espresso', name:'Espresso', seq:['ESP'], time:2 },
+    { id:'sweet-espresso', name:'Süßer Espresso', seq:['ESP','SUG'], time:3 },
+    { id:'flatwhite', name:'Flat White', seq:['ESP','MIL'], time:3 },
+    { id:'mocha-shot', name:'Mokaccino', seq:['ESP','CHO'], time:3 },
+    { id:'iced-shot', name:'Iced Shot', seq:['ESP','ICE'], time:3 },
+    { id:'milk-choco', name:'Schokomilch', seq:['CHO','MIL'], time:3 },
     { id:'cappuccino', name:'Cappuccino', seq:['ESP','MIL','CRM'], time:4 },
     { id:'latte', name:'Latte Macchiato', seq:['MIL','ESP','CRM'], time:4 },
     { id:'mocha', name:'Mocha', seq:['ESP','CHO','MIL'], time:5 },
@@ -132,6 +141,7 @@
     customers: [],           // wartende Kunden
     counter: [],             // Getränke auf dem Tresen {id, name, seq, readyAt, status}
     heldDrinkId: null,       // ausgewähltes fertiges Getränk zum Servieren
+    totalCustomersSpawned: 0,
     lastTick: performance.now(),
   };
 
@@ -145,13 +155,49 @@
     return id;
   };
   const bySeq = seq => RECIPES.find(r => r.seq.join('-') === seq.join('-'));
+  const recipesByLength = length => RECIPES.filter(r => r.seq.length === length);
+
+  function recipePoolForCustomer(index) {
+    if (index <= 10) {
+      const oneStep = recipesByLength(1);
+      return oneStep.length ? oneStep : RECIPES;
+    }
+    if (index <= 30) {
+      const pool = RECIPES.filter(r => r.seq.length <= 2);
+      return pool.length ? pool : RECIPES;
+    }
+    const extended = RECIPES.filter(r => r.seq.length <= 3);
+    return extended.length ? extended : RECIPES;
+  }
 
   // Patience helper
   function makeCustomer() {
     const faces = ['👩\u200d🦱','🧑\u200d🦰','🧔','👩\u200d🦳','🧑\u200d🦱','👩','🧑'];
-    const order = RECIPES[Math.floor(Math.random()*RECIPES.length)];
-    const patience = BASE_PATIENCE * (0.85 + Math.random()*0.5);
-    return { id: uid(), face: faces[Math.floor(Math.random()*faces.length)], orderId: order.id, orderSeq: order.seq.slice(), patience, start: performance.now() };
+    const index = ++state.totalCustomersSpawned;
+    const pool = recipePoolForCustomer(index);
+    const order = pool[Math.floor(Math.random()*pool.length)];
+    let patience = BASE_PATIENCE * (0.85 + Math.random()*0.5);
+    const livesTotal = 3 + Math.floor(Math.random()*3); // 3..5
+    let livesLeft = livesTotal;
+    let grumpy = false;
+    if (livesTotal === 3) {
+      livesLeft = 1; // schon 2 Leben verloren
+      patience *= 0.85;
+      grumpy = true;
+    }
+    return {
+      id: uid(),
+      face: faces[Math.floor(Math.random()*faces.length)],
+      orderId: order.id,
+      orderSeq: order.seq.slice(),
+      patience,
+      start: performance.now(),
+      livesTotal,
+      livesLeft,
+      heartsMax: 5,
+      number: index,
+      grumpy,
+    };
   }
 
   function spawnCustomers() {
@@ -184,6 +230,7 @@
       const r = RECIPES.find(r=>r.id===c.orderId);
       const box = el('div','customer'); box.tabIndex = 0;
       box.setAttribute('role','button');
+      if (c.grumpy) box.classList.add('grumpy');
       const av = el('div','avatar', c.face); box.append(av);
       const bub = el('div','bubble', r ? r.name : 'Bestellung'); box.append(bub);
       const order = el('div','order');
@@ -197,10 +244,23 @@
       fill.style.width = (pct*100).toFixed(1)+'%';
       fill.style.background = pct>0.5? 'linear-gradient(90deg, var(--ok), #bdf59f)': pct>0.25? 'linear-gradient(90deg, var(--warn), #ffe8a8)': 'linear-gradient(90deg, var(--bad), #ffb3c3)';
       if (c.angryUntil && performance.now() < c.angryUntil) box.classList.add('angry');
+      const hearts = el('div','hearts');
+      const heartsMax = c.heartsMax || 5;
+      const livesTotal = typeof c.livesTotal === 'number' ? c.livesTotal : heartsMax;
+      const livesLeft = typeof c.livesLeft === 'number' ? c.livesLeft : livesTotal;
+      for (let i = 0; i < heartsMax; i++) {
+        const heart = el('span','heart','❤️');
+        if (i >= livesLeft && i < livesTotal) heart.classList.add('lost');
+        if (i >= livesTotal) heart.classList.add('inactive');
+        hearts.append(heart);
+      }
+      box.append(hearts);
       if (state.heldDrinkId) {
-        const btn = el('button','serve-btn','Jetzt servieren');
-        btn.dataset.id = c.id;
-        box.append(btn);
+        const held = state.counter.find(d => d.id === state.heldDrinkId);
+        if (held && held.status === 'ready' && !held.toxic) {
+          const matches = held.seq.join('-') === c.orderSeq.join('-');
+          if (matches) box.classList.add('can-serve');
+        }
       }
       box.dataset.id = c.id;
       cwrap.append(box);
@@ -301,14 +361,13 @@
   };
 
   const handleCustomerTap = (e) => {
-    const btn = e.target.closest('.serve-btn');
-    const cEl = btn ? null : e.target.closest('.customer');
-    if (!btn && !cEl) return;
+    const cEl = e.target.closest('.customer');
+    if (!cEl) return;
     if (!state.heldDrinkId) {
       showToast('Wähle zuerst ein Getränk am Tresen');
       return;
     }
-    const cid = btn ? btn.dataset.id : cEl.dataset.id;
+    const cid = cEl.dataset.id;
     const cust = state.customers.find((c) => c.id === cid);
     const drink = state.counter.find((d) => d.id === state.heldDrinkId);
     if (!cust || !drink) return;
@@ -396,9 +455,17 @@
     for (let i = state.customers.length - 1; i >= 0; i--) {
       const c = state.customers[i];
       if (t - c.start > c.patience) {
-        state.customers.splice(i, 1);
-        state.mistakes += 1;
-        needsRender = true;
+        if (c.livesLeft && c.livesLeft > 1) {
+          c.livesLeft -= 1;
+          c.start = t;
+          c.angryUntil = t + 2500;
+          c.grumpy = true;
+          needsRender = true;
+        } else {
+          state.customers.splice(i, 1);
+          state.mistakes += 1;
+          needsRender = true;
+        }
       }
     }
     if (spawnCustomers()) needsRender = true;
