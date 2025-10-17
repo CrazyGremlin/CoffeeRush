@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
-  <title>Coffee Rush — v0.5.0</title>
+  <title>Coffee Rush — v0.6.0</title>
   <meta name="description" content="Erste spielbare Version: One‑Finger Coffee‑Shop‑Spiel. Single‑File, offline‑fähig, keine Server‑Anbindung." />
   <style>
     :root{
@@ -173,15 +173,15 @@
 <script>
 (() => {
   // ===== Config =====
-  const VERSION = 'v0.5.0';
+  const VERSION = 'v0.6.0';
   const MAX_CUSTOMERS = 3;
   const MAX_COUNTER_SLOTS = 3;
   const PATIENCE_SECONDS_BY_HEART = new Map([
-    [5, 7],
-    [4, 5],
-    [3, 4],
-    [2, 3],
-    [1, 3],
+    [5, 8],
+    [4, 7],
+    [3, 6],
+    [2, 5],
+    [1, 4],
   ]);
 
   // 6 Zutaten-Buttons (Emoji + Key)
@@ -392,10 +392,11 @@
   };
   const bySeq = seq => RECIPES.find(r => sameIngredients(r.seq, seq));
 
-  const patienceMsForHearts = (hearts) => {
+  const patienceMsForHearts = (hearts, ingredientCount = 0) => {
     const normalized = Math.max(1, Math.min(5, Math.floor(hearts || 0)));
-    const seconds = PATIENCE_SECONDS_BY_HEART.get(normalized) ?? (normalized + 2);
-    return seconds * 1000;
+    const baseSeconds = PATIENCE_SECONDS_BY_HEART.get(normalized) ?? (normalized + 3);
+    const bonusSeconds = Math.max(0, ingredientCount);
+    return (baseSeconds + bonusSeconds) * 1000;
   };
 
   function recipePoolForCustomer(index) {
@@ -422,21 +423,25 @@
       livesLeft = 1; // schon 2 Leben verloren
       grumpy = true;
     }
-    const patience = patienceMsForHearts(livesLeft);
-    const start = performance.now();
+    const patience = patienceMsForHearts(livesLeft, order.seq.length);
+    const createdAt = performance.now();
+    const graceMs = randInt(2000, 5000);
+    const countdownStart = createdAt + graceMs;
     return {
       id: uid(),
       face: faces[Math.floor(Math.random()*faces.length)],
       orderId: order.id,
       orderSeq: order.seq.slice(),
       patience,
-      start,
+      start: countdownStart,
+      graceUntil: countdownStart,
+      createdAt,
       livesTotal,
       livesLeft,
       heartsMax: 5,
       number: index,
       grumpy,
-      enteringUntil: start + 520,
+      enteringUntil: createdAt + 520,
     };
   }
 
@@ -563,7 +568,9 @@
         box.classList.add('leaving');
         if (c.leftAngry) box.classList.add('leaving-angry');
       }
-      const av = el('div','avatar', c.face); box.append(av);
+      const inGrace = !c.leaving && nowRender < (c.graceUntil ?? c.start);
+      const avatarText = inGrace ? `${c.face} 💰` : c.face;
+      const av = el('div','avatar', avatarText); box.append(av);
       const bub = el('div','bubble', r ? r.name : 'Bestellung'); box.append(bub);
       const order = el('div','order');
       c.orderSeq.slice(0, 3).forEach(k=>{
@@ -573,7 +580,8 @@
       box.append(order);
       const patience = el('div','patience'); const fill = el('i'); patience.append(fill); box.append(patience);
       // Patience percent
-      const elapsed = nowRender - c.start; const pct = Math.max(0, 1 - elapsed / c.patience);
+      const elapsed = Math.max(0, nowRender - c.start);
+      const pct = Math.max(0, Math.min(1, 1 - elapsed / c.patience));
       fill.style.width = (pct*100).toFixed(1)+'%';
       fill.style.background = pct>0.5? 'linear-gradient(90deg, var(--ok), #bdf59f)': pct>0.25? 'linear-gradient(90deg, var(--warn), #ffe8a8)': 'linear-gradient(90deg, var(--bad), #ffb3c3)';
       if (c.angryUntil && nowRender < c.angryUntil) box.classList.add('angry');
@@ -671,9 +679,15 @@
       if (!cust || cust.leaving) return;
       const fill = box.querySelector('.patience i');
       if (fill) {
-        const pct = Math.max(0, 1 - (nowT - cust.start) / cust.patience);
+        const elapsed = Math.max(0, nowT - cust.start);
+        const pct = Math.max(0, Math.min(1, 1 - elapsed / cust.patience));
         fill.style.width = (pct * 100).toFixed(1) + '%';
         fill.style.background = pct>0.5? 'linear-gradient(90deg, var(--ok), #bdf59f)': pct>0.25? 'linear-gradient(90deg, var(--warn), #ffe8a8)': 'linear-gradient(90deg, var(--bad), #ffb3c3)';
+      }
+      const avatar = box.querySelector('.avatar');
+      if (avatar) {
+        const inGrace = nowT < (cust.graceUntil ?? cust.start);
+        avatar.textContent = inGrace ? `${cust.face} 💰` : cust.face;
       }
       if (cust.angryUntil && nowT < cust.angryUntil) box.classList.add('angry');
       else box.classList.remove('angry');
@@ -770,8 +784,8 @@
     const ok = want && !drink.toxic && sameIngredients(want.seq, drink.seq);
     if (ok) {
       state.score += 10;
-      const elapsed = performance.now() - cust.start;
-      const pct = Math.max(0, 1 - elapsed / cust.patience);
+      const elapsed = Math.max(0, performance.now() - cust.start);
+      const pct = Math.max(0, Math.min(1, 1 - elapsed / cust.patience));
       state.score += Math.round(10 * pct);
       cust.leaving = true;
       cust.leaveAt = performance.now() + 480;
@@ -782,10 +796,11 @@
     } else {
       const nowT = performance.now();
       cust.angryUntil = nowT + 3000;
-      const elapsed = nowT - cust.start;
+      const elapsed = Math.max(0, nowT - cust.start);
       const remain = Math.max(0, cust.patience - elapsed);
       const newRemain = remain * 0.4;
       cust.start = nowT - (cust.patience - newRemain);
+      cust.graceUntil = cust.start;
       state.mistakes += 1;
       state.counter[drinkIndex] = null;
       state.heldDrinkId = null;
@@ -903,7 +918,7 @@
           state.customers[i] = null;
           if (leftAngry) {
             state.customerWaste[i] = {
-              clicksRequired: randInt(5, 15),
+              clicksRequired: randInt(1, 3),
               clicksDone: 0,
             };
           } else {
@@ -916,8 +931,9 @@
       if (t - c.start > c.patience) {
         if (c.livesLeft && c.livesLeft > 1) {
           c.livesLeft -= 1;
-          c.patience = patienceMsForHearts(c.livesLeft);
+          c.patience = patienceMsForHearts(c.livesLeft, c.orderSeq ? c.orderSeq.length : 0);
           c.start = t;
+          c.graceUntil = c.start;
           c.angryUntil = t + 2500;
           c.grumpy = true;
           needsRender = true;
