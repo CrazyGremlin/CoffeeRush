@@ -3,14 +3,14 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
-  <title>Coffee Rush — v0.2.0</title>
+  <title>Coffee Rush — v0.3.0</title>
   <meta name="description" content="Erste spielbare Version: One‑Finger Coffee‑Shop‑Spiel. Single‑File, offline‑fähig, keine Server‑Anbindung." />
   <style>
     :root{
       --bg:#221a16; --card:#2d221d; --ink:#f3e8dd; --muted:#cbbcae; --brand:#d6a879; --ok:#8fe388; --warn:#ffdb6e; --bad:#ff8ba7; --accent:#ffcf99;
     }
     *{box-sizing:border-box; -webkit-tap-highlight-color: transparent;}
-    html,body{height:100%}
+    html,body{height:100%; touch-action:manipulation;}
     body{margin:0; font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, Arial; background: radial-gradient(1200px 800px at 70% -10%, #37291f, var(--bg) 60%); color: var(--ink);}
     .wrap{max-width:480px; margin:0 auto; padding:12px;}
     header{display:flex; gap:8px; align-items:center; justify-content:space-between; background:var(--card); border:1px solid #46372f; border-radius:14px; padding:10px 12px; position:sticky; top:0; backdrop-filter:saturate(1.2) blur(6px); z-index:10}
@@ -152,7 +152,7 @@
 <script>
 (() => {
   // ===== Config =====
-  const VERSION = 'v0.2.0';
+  const VERSION = 'v0.3.0';
   const MAX_CUSTOMERS = 3;
   const MAX_COUNTER_SLOTS = 3;
   const BASE_PATIENCE = 18_000; // ms
@@ -209,6 +209,84 @@
   const versionFooter = document.getElementById('versionFooter');
   if (versionFooter) versionFooter.textContent = VERSION;
   const levelOverlay = document.getElementById('levelOverlay');
+  document.addEventListener('dblclick', (ev) => {
+    if (window.matchMedia && window.matchMedia('(pointer: coarse)').matches) {
+      ev.preventDefault();
+    }
+  }, { passive: false });
+
+  // ===== Audio =====
+  const audio = (() => {
+    const Ctor = window.AudioContext || window.webkitAudioContext;
+    let ctx = null;
+    const ensure = () => {
+      if (!Ctor) return null;
+      if (!ctx) ctx = new Ctor();
+      if (ctx.state === 'suspended') ctx.resume();
+      return ctx;
+    };
+    const presets = {
+      select: [
+        { freq: 420, duration: 0.08, volume: 0.09, type: 'triangle' },
+      ],
+      brewStart: [
+        { freq: 260, duration: 0.09, volume: 0.11, type: 'sawtooth' },
+        { freq: 200, duration: 0.08, volume: 0.08, type: 'triangle', gap: 0.02 },
+      ],
+      brewReady: [
+        { freq: 640, duration: 0.1, volume: 0.14, type: 'square' },
+        { freq: 880, duration: 0.16, volume: 0.12, type: 'triangle', gap: 0.02 },
+      ],
+      success: [
+        { freq: 540, duration: 0.11, volume: 0.12, type: 'triangle' },
+        { freq: 760, duration: 0.14, volume: 0.12, type: 'triangle', gap: 0.03 },
+      ],
+      error: [
+        { freq: 200, duration: 0.14, volume: 0.12, type: 'square' },
+        { freq: 140, duration: 0.22, volume: 0.1, type: 'sawtooth', gap: 0.04 },
+      ],
+      levelStart: [
+        { freq: 300, duration: 0.1, volume: 0.1, type: 'triangle' },
+        { freq: 420, duration: 0.12, volume: 0.12, type: 'triangle', gap: 0.02 },
+        { freq: 560, duration: 0.16, volume: 0.11, type: 'triangle', gap: 0.02 },
+      ],
+    };
+    const play = (name) => {
+      const preset = presets[name];
+      if (!preset || !preset.length) return;
+      const context = ensure();
+      if (!context) return;
+      let startAt = context.currentTime;
+      preset.forEach((part) => {
+        const osc = context.createOscillator();
+        const gain = context.createGain();
+        const vol = part.volume ?? 0.1;
+        gain.gain.setValueAtTime(0.0001, startAt);
+        gain.gain.exponentialRampToValueAtTime(Math.max(0.0001, vol), startAt + 0.01);
+        const endAt = startAt + (part.duration || 0.12);
+        gain.gain.exponentialRampToValueAtTime(0.0001, endAt);
+        osc.frequency.setValueAtTime(part.freq || 440, startAt);
+        osc.type = part.type || 'sine';
+        osc.connect(gain);
+        gain.connect(context.destination);
+        osc.start(startAt);
+        osc.stop(endAt + 0.05);
+        startAt = endAt + (part.gap || 0);
+      });
+    };
+    const unlock = () => {
+      const context = ensure();
+      if (!context) return;
+      if (context.state === 'suspended') context.resume();
+    };
+    const unlockEvents = ['pointerdown', 'touchstart', 'keydown'];
+    unlockEvents.forEach((evt) => {
+      window.addEventListener(evt, () => {
+        unlock();
+      }, { once: true, passive: true });
+    });
+    return { play };
+  })();
   const el = (tag, cls, txt) => { const e = document.createElement(tag); if (cls) e.className=cls; if (txt!=null) e.textContent=txt; return e; };
   const uid = () => {
     let id = '';
@@ -412,6 +490,7 @@
     spawnCustomers();
     render();
     showToast(`Level ${sanitized} gestartet`);
+    audio.play('levelStart');
   }
 
   function updateLiveElements() {
@@ -494,6 +573,7 @@
     }
     state.heldDrinkId = state.heldDrinkId === id ? null : id;
     render();
+    audio.play('select');
   };
 
   const handleCustomerTap = (e) => {
@@ -522,6 +602,7 @@
       state.counter[drinkIndex] = null;
       state.heldDrinkId = null;
       spawnCustomers();
+      audio.play('success');
     } else {
       const nowT = performance.now();
       cust.angryUntil = nowT + 3000;
@@ -533,6 +614,7 @@
       state.counter[drinkIndex] = null;
       state.heldDrinkId = null;
       showToast('Falsches Getränk!');
+      audio.play('error');
     }
     render();
   };
@@ -552,7 +634,11 @@
       b.textContent = ing.label + ' ';
       const small = el('small'); small.textContent = ing.name; small.style.display='block'; small.style.fontSize='12px'; small.style.opacity='0.8';
       b.append(small);
-      b.addEventListener('click', () => { state.selection.push(ing.key); render(); });
+      b.addEventListener('click', () => {
+        state.selection.push(ing.key);
+        render();
+        audio.play('select');
+      });
       grid.append(b);
     });
   }
@@ -571,12 +657,14 @@
     state.counter[slotIndex] = drinkData;
     state.selection = [];
     render();
+    audio.play('brewStart');
   });
 
   // Select drink then tap customer to serve
   function bumpMistake(_msg) {
     state.mistakes += 1;
     if (_msg) showToast(_msg);
+    audio.play('error');
   }
 
   // ===== Game Loop (timers, patience, brewing) =====
@@ -592,6 +680,7 @@
       if (d.status === 'brewing' && t >= d.readyAt) {
         d.status = 'ready';
         needsRender = true;
+        audio.play('brewReady');
       }
     });
     for (let i = state.customers.length - 1; i >= 0; i--) {
