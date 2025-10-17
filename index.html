@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
-  <title>Coffee Rush — v0.1.0</title>
+  <title>Coffee Rush — v0.1.1</title>
   <meta name="description" content="Erste spielbare Version: One‑Finger Coffee‑Shop‑Spiel. Single‑File, offline‑fähig, keine Server‑Anbindung." />
   <style>
     :root{
@@ -83,7 +83,7 @@
 <body>
   <div class="wrap">
     <header>
-      <div class="title">☕ Coffee Rush <span class="hint" id="versionTag"></span></div>
+      <div class="title">☕ Coffee Rush</div>
       <div class="stat">
         <span class="pill">Score: <b id="score">0</b></span>
         <span class="pill">Fehler: <b id="mistakes">0</b></span>
@@ -118,7 +118,7 @@
 <script>
 (() => {
   // ===== Config =====
-  const VERSION = 'v0.1.0';
+  const VERSION = 'v0.1.1';
   const MAX_CUSTOMERS = 3;
   const MAX_COUNTER_SLOTS = 3;
   const BASE_PATIENCE = 18_000; // ms
@@ -170,8 +170,6 @@
   const $ = sel => document.querySelector(sel);
   const $$ = sel => Array.from(document.querySelectorAll(sel));
   document.title = `Coffee Rush — ${VERSION}`;
-  const versionLabel = document.getElementById('versionTag');
-  if (versionLabel) versionLabel.textContent = VERSION;
   const versionFooter = document.getElementById('versionFooter');
   if (versionFooter) versionFooter.textContent = VERSION;
   const el = (tag, cls, txt) => { const e = document.createElement(tag); if (cls) e.className=cls; if (txt!=null) e.textContent=txt; return e; };
