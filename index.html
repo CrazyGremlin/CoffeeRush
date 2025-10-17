@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
-  <title>Coffee Rush — v0.3.0</title>
+  <title>Coffee Rush — v0.4.0</title>
   <meta name="description" content="Erste spielbare Version: One‑Finger Coffee‑Shop‑Spiel. Single‑File, offline‑fähig, keine Server‑Anbindung." />
   <style>
     :root{
@@ -79,7 +79,9 @@
     .drink-ready{display:flex; flex-direction:column; align-items:center; gap:6px; width:100%;}
     .drink-order{width:100%; justify-content:center;}
     .drink-name{font-weight:700; line-height:1.2; text-align:center; font-size:14px; margin-top:4px;}
-    .timer{position:absolute; right:10px; top:-10px; font-size:12px; background:#3b2e27; border:1px solid #4a3a31; border-radius:999px; padding:2px 8px; color:var(--muted)}
+    .slot-progress{width:100%; height:6px; background:#3a2c25; border:1px solid #4a3a31; border-radius:999px; overflow:hidden; position:relative;}
+    .slot-progress>i{display:block; height:100%; width:0; background:linear-gradient(90deg, var(--accent), #f4c27a); transition:width .12s ease;}
+    .slot-status{font-size:12px; color:var(--muted); margin-top:4px; text-align:center; min-height:16px;}
 
     /* Auswahl & Buttons */
     .brew-bar{display:flex; gap:10px; align-items:center; margin-top:12px}
@@ -152,10 +154,16 @@
 <script>
 (() => {
   // ===== Config =====
-  const VERSION = 'v0.3.0';
+  const VERSION = 'v0.4.0';
   const MAX_CUSTOMERS = 3;
   const MAX_COUNTER_SLOTS = 3;
-  const BASE_PATIENCE = 18_000; // ms
+  const PATIENCE_SECONDS_BY_HEART = new Map([
+    [5, 7],
+    [4, 5],
+    [3, 4],
+    [2, 3],
+    [1, 3],
+  ]);
 
   // 6 Zutaten-Buttons (Emoji + Key)
   const INGREDIENTS = [
@@ -180,11 +188,14 @@
     { id:'mocha-shot', name:'Mokaccino', seq:['ESP','CHO'], time:3 },
     { id:'iced-shot', name:'Iced Shot', seq:['ESP','ICE'], time:3 },
     { id:'milk-choco', name:'Schokomilch', seq:['CHO','MIL'], time:3 },
+    { id:'espresso-macchiato', name:'Espresso Macchiato', seq:['ESP','CRM'], time:3 },
     { id:'cappuccino', name:'Cappuccino', seq:['ESP','MIL','CRM'], time:4 },
-    { id:'latte', name:'Latte Macchiato', seq:['MIL','ESP','CRM'], time:4 },
     { id:'mocha', name:'Mocha', seq:['ESP','CHO','MIL'], time:5 },
     { id:'iced', name:'Iced Coffee', seq:['ESP','ICE','SUG'], time:5 },
     { id:'choco', name:'Hot Chocolate', seq:['CHO','MIL','CRM'], time:4 },
+    { id:'frost-latte', name:'Iced Latte', seq:['ESP','MIL','ICE'], time:5 },
+    { id:'affogato', name:'Affogato', seq:['ESP','ICE','CRM'], time:5 },
+    { id:'sweet-cream', name:'Sweet Cream', seq:['MIL','CRM','SUG'], time:4 },
   ];
   const TOXIC = { id:'toxic', name:'Giftgetränk', emoji:'☠️', time:3 };
 
@@ -196,7 +207,7 @@
     level: null,
     selection: [],           // aktuelle Zutatenwahl (Keys)
     customers: Array(MAX_CUSTOMERS).fill(null),           // wartende Kunden
-    counter: Array(MAX_COUNTER_SLOTS).fill(null),             // Getränke auf dem Tresen {id, name, seq, readyAt, status}
+    counter: Array(MAX_COUNTER_SLOTS).fill(null),             // Getränke auf dem Tresen {id, name, seq, status, brewStart, readyAt, expiryAt}
     heldDrinkId: null,       // ausgewähltes fertiges Getränk zum Servieren
     totalCustomersSpawned: 0,
     lastTick: performance.now(),
@@ -309,6 +320,12 @@
   };
   const bySeq = seq => RECIPES.find(r => sameIngredients(r.seq, seq));
 
+  const patienceMsForHearts = (hearts) => {
+    const normalized = Math.max(1, Math.min(5, Math.floor(hearts || 0)));
+    const seconds = PATIENCE_SECONDS_BY_HEART.get(normalized) ?? (normalized + 2);
+    return seconds * 1000;
+  };
+
   function recipePoolForCustomer(index) {
     const level = state.level || 1;
     const maxLen = index <= 10 ? 1 : index <= 30 ? 2 : 3;
@@ -326,22 +343,22 @@
     const index = ++state.totalCustomersSpawned;
     const pool = recipePoolForCustomer(index);
     const order = pool[Math.floor(Math.random()*pool.length)];
-    let patience = BASE_PATIENCE * (0.85 + Math.random()*0.5);
     const livesTotal = 3 + Math.floor(Math.random()*3); // 3..5
     let livesLeft = livesTotal;
     let grumpy = false;
     if (livesTotal === 3) {
       livesLeft = 1; // schon 2 Leben verloren
-      patience *= 0.85;
       grumpy = true;
     }
+    const patience = patienceMsForHearts(livesLeft);
+    const start = performance.now();
     return {
       id: uid(),
       face: faces[Math.floor(Math.random()*faces.length)],
       orderId: order.id,
       orderSeq: order.seq.slice(),
       patience,
-      start: performance.now(),
+      start,
       livesTotal,
       livesLeft,
       heartsMax: 5,
@@ -360,6 +377,38 @@
       }
     }
     return added;
+  }
+
+  function updateDrinkSlotVisual(slot, drink, nowT) {
+    if (!slot || !drink) return;
+    const fill = slot.querySelector('.slot-progress i');
+    const statusLabel = slot.querySelector('.slot-status');
+    if (!fill || !statusLabel) return;
+    if (drink.status === 'brewing') {
+      const duration = drink.brewDuration || Math.max(1, (drink.readyAt || 0) - (drink.brewStart || 0));
+      const pct = duration > 0
+        ? Math.max(0, Math.min(1, (nowT - (drink.brewStart || 0)) / duration))
+        : 1;
+      fill.style.width = (pct * 100).toFixed(1) + '%';
+      fill.style.background = 'linear-gradient(90deg, var(--accent), #f4c27a)';
+      statusLabel.textContent = 'Brühen …';
+      slot.classList.add('brewing');
+      slot.classList.remove('ready');
+    } else {
+      const remain = Math.max(0, (drink.expiryAt || 0) - nowT);
+      const shelf = drink.shelfLife ?? ((drink.brewDuration || 0) * 3);
+      const pct = shelf > 0 ? Math.max(0, Math.min(1, remain / shelf)) : 0;
+      fill.style.width = (pct * 100).toFixed(1) + '%';
+      const bg = pct > 0.5
+        ? 'linear-gradient(90deg, var(--ok), #bdf59f)'
+        : pct > 0.25
+          ? 'linear-gradient(90deg, var(--warn), #ffe8a8)'
+          : 'linear-gradient(90deg, var(--bad), #ffb3c3)';
+      fill.style.background = bg;
+      statusLabel.textContent = pct > 0 ? 'Servierbereit' : 'Verdorben';
+      slot.classList.add('ready');
+      slot.classList.remove('brewing');
+    }
   }
   // ===== Rendering =====
   function render() {
@@ -439,6 +488,7 @@
 
     // Counter drinks
     const dwrap = $('#counter'); dwrap.innerHTML = '';
+    const nowRender = performance.now();
     for (let i = 0; i < MAX_COUNTER_SLOTS; i++) {
       const d = state.counter[i];
       if (!d) {
@@ -466,9 +516,12 @@
       drink.append(orderBox);
       drink.append(el('div','drink-name', d.name));
       slot.append(drink);
-      const left = d.status==='brewing'? Math.max(0, Math.ceil((d.readyAt - performance.now())/1000)) : 0;
-      const timer = el('div','timer', d.status==='brewing'? (left+'s') : 'Bereit');
-      slot.append(timer);
+      const progress = el('div','slot-progress');
+      progress.append(el('i'));
+      slot.append(progress);
+      const status = el('div','slot-status');
+      slot.append(status);
+      updateDrinkSlotVisual(slot, d, nowRender);
       dwrap.append(slot);
     }
   }
@@ -511,21 +564,12 @@
       else box.classList.remove('angry');
     });
     $$('.slot').forEach((slot) => {
-      const timer = slot.querySelector('.timer');
+      if (slot.classList.contains('empty')) return;
       const did = slot.dataset.id;
-      if (!timer || !did) return;
+      if (!did) return;
       const drink = state.counter.find((d) => d && d.id === did);
       if (!drink) return;
-      if (drink.status === 'brewing') {
-        const left = Math.max(0, Math.ceil((drink.readyAt - nowT)/1000));
-        timer.textContent = left + 's';
-        slot.classList.add('brewing');
-        slot.classList.remove('ready');
-      } else {
-        timer.textContent = 'Bereit';
-        slot.classList.add('ready');
-        slot.classList.remove('brewing');
-      }
+      updateDrinkSlotVisual(slot, drink, nowT);
     });
   }
 
@@ -651,9 +695,36 @@
     const recipe = bySeq(state.selection);
     const id = uid();
     const nowT = performance.now();
+    const brewSeconds = recipe ? recipe.time : TOXIC.time;
+    const brewDuration = brewSeconds * 1000;
+    const readyAt = nowT + brewDuration;
+    const shelfLife = brewDuration * 3;
+    const expiryAt = readyAt + shelfLife;
     const drinkData = !recipe
-      ? { id, name: TOXIC.name, seq: state.selection.slice(), status:'brewing', readyAt: nowT + TOXIC.time*1000, toxic:true }
-      : { id, name: recipe.name, seq: recipe.seq.slice(), status:'brewing', readyAt: nowT + recipe.time*1000, toxic:false };
+      ? {
+          id,
+          name: TOXIC.name,
+          seq: state.selection.slice(),
+          status: 'brewing',
+          brewStart: nowT,
+          readyAt,
+          brewDuration,
+          shelfLife,
+          expiryAt,
+          toxic: true,
+        }
+      : {
+          id,
+          name: recipe.name,
+          seq: recipe.seq.slice(),
+          status: 'brewing',
+          brewStart: nowT,
+          readyAt,
+          brewDuration,
+          shelfLife,
+          expiryAt,
+          toxic: false,
+        };
     state.counter[slotIndex] = drinkData;
     state.selection = [];
     render();
@@ -675,20 +746,28 @@
     }
     const t = performance.now();
     let needsRender = false;
-    state.counter.forEach((d) => {
-      if (!d) return;
+    for (let i = 0; i < state.counter.length; i++) {
+      const d = state.counter[i];
+      if (!d) continue;
       if (d.status === 'brewing' && t >= d.readyAt) {
         d.status = 'ready';
+        d.readyAt = t;
+        if (typeof d.expiryAt !== 'number') d.expiryAt = t + (d.shelfLife || 0);
         needsRender = true;
         audio.play('brewReady');
+      } else if (d.status === 'ready' && typeof d.expiryAt === 'number' && t >= d.expiryAt) {
+        if (state.heldDrinkId === d.id) state.heldDrinkId = null;
+        state.counter[i] = null;
+        needsRender = true;
       }
-    });
+    }
     for (let i = state.customers.length - 1; i >= 0; i--) {
       const c = state.customers[i];
       if (!c) continue;
       if (t - c.start > c.patience) {
         if (c.livesLeft && c.livesLeft > 1) {
           c.livesLeft -= 1;
+          c.patience = patienceMsForHearts(c.livesLeft);
           c.start = t;
           c.angryUntil = t + 2500;
           c.grumpy = true;
