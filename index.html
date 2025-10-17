@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
-  <title>Coffee Rush — v0.1.5</title>
+  <title>Coffee Rush — v0.1.6</title>
   <meta name="description" content="Erste spielbare Version: One‑Finger Coffee‑Shop‑Spiel. Single‑File, offline‑fähig, keine Server‑Anbindung." />
   <style>
     :root{
@@ -120,7 +120,7 @@
 
     <!-- Auswahl & Buttons -->
     <section class="section">
-      <div class="hint">Zutaten auswählen (Reihenfolge zählt):</div>
+      <div class="hint">Zutaten auswählen (Reihenfolge egal):</div>
       <div class="btns" id="ingredients"></div>
       <div class="brew-bar">
         <div class="selection" id="selection"></div>
@@ -135,7 +135,7 @@
 <script>
 (() => {
   // ===== Config =====
-  const VERSION = 'v0.1.5';
+  const VERSION = 'v0.1.6';
   const MAX_CUSTOMERS = 3;
   const MAX_COUNTER_SLOTS = 3;
   const BASE_PATIENCE = 18_000; // ms
@@ -195,7 +195,21 @@
     while (!id) id = Math.random().toString(36).slice(2,9);
     return id;
   };
-  const bySeq = seq => RECIPES.find(r => r.seq.join('-') === seq.join('-'));
+  const sameIngredients = (a, b) => {
+    if (a.length !== b.length) return false;
+    const counts = new Map();
+    for (const item of a) {
+      counts.set(item, (counts.get(item) || 0) + 1);
+    }
+    for (const item of b) {
+      if (!counts.has(item)) return false;
+      const next = counts.get(item) - 1;
+      if (next === 0) counts.delete(item);
+      else counts.set(item, next);
+    }
+    return counts.size === 0;
+  };
+  const bySeq = seq => RECIPES.find(r => sameIngredients(r.seq, seq));
   const recipesByLength = length => RECIPES.filter(r => r.seq.length === length);
 
   function recipePoolForCustomer(index) {
@@ -319,7 +333,7 @@
       if (state.heldDrinkId) {
         const held = state.counter.find(d => d && d.id === state.heldDrinkId);
         if (held && held.status === 'ready' && !held.toxic) {
-          const matches = held.seq.join('-') === c.orderSeq.join('-');
+          const matches = sameIngredients(held.seq, c.orderSeq);
           if (matches) box.classList.add('can-serve');
         }
       }
@@ -461,7 +475,7 @@
     const drink = drinkIndex >= 0 ? state.counter[drinkIndex] : null;
     if (!cust || !drink) return;
     const want = RECIPES.find((r) => r.id === cust.orderId);
-    const ok = want && !drink.toxic && want.seq.join('-') === drink.seq.join('-');
+    const ok = want && !drink.toxic && sameIngredients(want.seq, drink.seq);
     if (ok) {
       state.score += 10;
       const elapsed = performance.now() - cust.start;
