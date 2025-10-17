@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
-  <title>Coffee Rush — v0.1.1</title>
+  <title>Coffee Rush — v0.1.2</title>
   <meta name="description" content="Erste spielbare Version: One‑Finger Coffee‑Shop‑Spiel. Single‑File, offline‑fähig, keine Server‑Anbindung." />
   <style>
     :root{
@@ -22,16 +22,19 @@
 
     /* Kundenzeile */
     .row{display:flex; gap:10px; align-items:flex-start}
-    .customer{flex:1; min-width:0; background:#2b201b; border:1px solid #44352d; border-radius:14px; padding:8px; position:relative; transition:transform .08s ease, box-shadow .12s ease; cursor:pointer}
+    .customer{flex:1; min-width:0; background:#2b201b; border:1px solid #44352d; border-radius:14px; padding:8px; position:relative; transition:transform .08s ease, box-shadow .12s ease; cursor:pointer; display:flex; flex-direction:column}
     .customer.angry{box-shadow:0 0 0 2px #ff8ba766 inset; transform:translateY(-1px)}
     .customer.grumpy{box-shadow:0 0 0 2px #ff8ba733 inset;}
     .customer.can-serve{box-shadow:0 0 0 2px var(--accent) inset;}
+    .customer.empty{border-style:dashed; border-color:#4a3a31; color:var(--muted); align-items:center; justify-content:center; text-align:center; cursor:default; pointer-events:none}
+    .customer.empty:hover{transform:none}
+    .customer.empty .slot-placeholder{font-size:12px}
     .avatar{font-size:20px}
     .order{margin-top:6px; display:flex; gap:6px; flex-wrap:wrap}
     .order .it{font-size:18px; background:#3a2c25; border:1px solid #4a3a31; border-radius:8px; padding:2px 6px}
     .patience{height:6px; background:#3a2c25; border:1px solid #4a3a31; border-radius:999px; overflow:hidden; margin-top:6px}
     .patience>i{display:block; height:100%; background:linear-gradient(90deg, var(--ok), #bdf59f)}
-    .hearts{display:flex; gap:2px; margin-top:6px; font-size:16px; line-height:1}
+    .hearts{display:flex; gap:2px; margin-top:6px; font-size:clamp(12px, 4vw, 16px); line-height:1}
     .heart{transition:transform .12s ease, opacity .12s ease}
     .heart.lost{opacity:0.35; transform:scale(0.9)}
     .heart.inactive{opacity:0.15; transform:scale(0.85)}
@@ -118,7 +121,7 @@
 <script>
 (() => {
   // ===== Config =====
-  const VERSION = 'v0.1.1';
+  const VERSION = 'v0.1.2';
   const MAX_CUSTOMERS = 3;
   const MAX_COUNTER_SLOTS = 3;
   const BASE_PATIENCE = 18_000; // ms
@@ -159,8 +162,8 @@
     score: 0,
     mistakes: 0,
     selection: [],           // aktuelle Zutatenwahl (Keys)
-    customers: [],           // wartende Kunden
-    counter: [],             // Getränke auf dem Tresen {id, name, seq, readyAt, status}
+    customers: Array(MAX_CUSTOMERS).fill(null),           // wartende Kunden
+    counter: Array(MAX_COUNTER_SLOTS).fill(null),             // Getränke auf dem Tresen {id, name, seq, readyAt, status}
     heldDrinkId: null,       // ausgewähltes fertiges Getränk zum Servieren
     totalCustomersSpawned: 0,
     lastTick: performance.now(),
@@ -226,17 +229,14 @@
 
   function spawnCustomers() {
     let added = false;
-    while (state.customers.length < MAX_CUSTOMERS) {
-      state.customers.push(makeCustomer());
-      added = true;
+    for (let i = 0; i < MAX_CUSTOMERS; i++) {
+      if (!state.customers[i]) {
+        state.customers[i] = makeCustomer();
+        added = true;
+      }
     }
     return added;
   }
-
-  function freeCounterSlot() {
-    return state.counter.length < MAX_COUNTER_SLOTS;
-  }
-
   // ===== Rendering =====
   function render() {
     $('#score').textContent = state.score;
@@ -264,7 +264,15 @@
 
     // Customers
     const cwrap = $('#customers'); cwrap.innerHTML = '';
-    state.customers.forEach(c => {
+    for (let i = 0; i < MAX_CUSTOMERS; i++) {
+      const c = state.customers[i];
+      if (!c) {
+        const placeholder = el('div','customer empty');
+        placeholder.append(el('div','slot-placeholder','Freier Platz'));
+        placeholder.setAttribute('aria-hidden','true');
+        cwrap.append(placeholder);
+        continue;
+      }
       const r = RECIPES.find(r=>r.id===c.orderId);
       const box = el('div','customer'); box.tabIndex = 0;
       box.setAttribute('role','button');
@@ -286,15 +294,15 @@
       const heartsMax = c.heartsMax || 5;
       const livesTotal = typeof c.livesTotal === 'number' ? c.livesTotal : heartsMax;
       const livesLeft = typeof c.livesLeft === 'number' ? c.livesLeft : livesTotal;
-      for (let i = 0; i < heartsMax; i++) {
+      for (let iH = 0; iH < heartsMax; iH++) {
         const heart = el('span','heart','❤️');
-        if (i >= livesLeft && i < livesTotal) heart.classList.add('lost');
-        if (i >= livesTotal) heart.classList.add('inactive');
+        if (iH >= livesLeft && iH < livesTotal) heart.classList.add('lost');
+        if (iH >= livesTotal) heart.classList.add('inactive');
         hearts.append(heart);
       }
       box.append(hearts);
       if (state.heldDrinkId) {
-        const held = state.counter.find(d => d.id === state.heldDrinkId);
+        const held = state.counter.find(d => d && d.id === state.heldDrinkId);
         if (held && held.status === 'ready' && !held.toxic) {
           const matches = held.seq.join('-') === c.orderSeq.join('-');
           if (matches) box.classList.add('can-serve');
@@ -302,7 +310,7 @@
       }
       box.dataset.id = c.id;
       cwrap.append(box);
-    });
+    }
 
     // Counter drinks
     const dwrap = $('#counter'); dwrap.innerHTML = '';
@@ -345,8 +353,10 @@
   function updateLiveElements() {
     const nowT = performance.now();
     $$('.customer').forEach((box) => {
+      if (box.classList.contains('empty')) return;
       const cid = box.dataset.id;
-      const cust = state.customers.find((c) => c.id === cid);
+      if (!cid) return;
+      const cust = state.customers.find((c) => c && c.id === cid);
       if (!cust) return;
       const fill = box.querySelector('.patience i');
       if (fill) {
@@ -361,7 +371,7 @@
       const timer = slot.querySelector('.timer');
       const did = slot.dataset.id;
       if (!timer || !did) return;
-      const drink = state.counter.find((d) => d.id === did);
+      const drink = state.counter.find((d) => d && d.id === did);
       if (!drink) return;
       if (drink.status === 'brewing') {
         const left = Math.max(0, Math.ceil((drink.readyAt - nowT)/1000));
@@ -411,7 +421,7 @@
     if (!slot || slot.classList.contains('empty')) return;
     const id = slot.dataset.id;
     if (!id) return;
-    const drink = state.counter.find((x) => x.id === id);
+    const drink = state.counter.find((x) => x && x.id === id);
     if (!drink) return;
     if (drink.status !== 'ready') {
       showToast('Noch am Brühen …');
@@ -424,13 +434,16 @@
   const handleCustomerTap = (e) => {
     const cEl = e.target.closest('.customer');
     if (!cEl) return;
+    if (cEl.classList.contains('empty')) return;
     if (!state.heldDrinkId) {
       showToast('Wähle zuerst ein Getränk am Tresen');
       return;
     }
     const cid = cEl.dataset.id;
-    const cust = state.customers.find((c) => c.id === cid);
-    const drink = state.counter.find((d) => d.id === state.heldDrinkId);
+    const custIndex = state.customers.findIndex((c) => c && c.id === cid);
+    const cust = custIndex >= 0 ? state.customers[custIndex] : null;
+    const drinkIndex = state.counter.findIndex((d) => d && d.id === state.heldDrinkId);
+    const drink = drinkIndex >= 0 ? state.counter[drinkIndex] : null;
     if (!cust || !drink) return;
     const want = RECIPES.find((r) => r.id === cust.orderId);
     const ok = want && !drink.toxic && want.seq.join('-') === drink.seq.join('-');
@@ -439,8 +452,8 @@
       const elapsed = performance.now() - cust.start;
       const pct = Math.max(0, 1 - elapsed / cust.patience);
       state.score += Math.round(10 * pct);
-      state.customers = state.customers.filter((c) => c.id !== cid);
-      state.counter = state.counter.filter((d) => d.id !== drink.id);
+      state.customers[custIndex] = null;
+      state.counter[drinkIndex] = null;
       state.heldDrinkId = null;
       spawnCustomers();
     } else {
@@ -451,7 +464,7 @@
       const newRemain = remain * 0.4;
       cust.start = nowT - (cust.patience - newRemain);
       state.mistakes += 1;
-      state.counter = state.counter.filter((d) => d.id !== drink.id);
+      state.counter[drinkIndex] = null;
       state.heldDrinkId = null;
       showToast('Falsches Getränk!');
     }
@@ -480,18 +493,18 @@
 
   // Prepare/Brew
   $('#btnBrew').addEventListener('click', () => {
-    if (!freeCounterSlot()) { bumpMistake('Tresen voll'); return; }
+    const slotIndex = state.counter.findIndex((slot) => !slot);
+    if (slotIndex === -1) { bumpMistake('Tresen voll'); return; }
     if (state.selection.length === 0) { bumpMistake('Kein Rezept'); return; }
     const recipe = bySeq(state.selection);
     const id = uid();
     const nowT = performance.now();
-    if (!recipe) {
-      // Unbekannte Kombi wird zum Giftgetränk
-      state.counter.push({ id, name: TOXIC.name, seq: state.selection.slice(), status:'brewing', readyAt: nowT + TOXIC.time*1000, toxic:true });
-    } else {
-      state.counter.push({ id, name: recipe.name, seq: recipe.seq.slice(), status:'brewing', readyAt: nowT + recipe.time*1000, toxic:false });
-    }
-    state.selection = []; render();
+    const drinkData = !recipe
+      ? { id, name: TOXIC.name, seq: state.selection.slice(), status:'brewing', readyAt: nowT + TOXIC.time*1000, toxic:true }
+      : { id, name: recipe.name, seq: recipe.seq.slice(), status:'brewing', readyAt: nowT + recipe.time*1000, toxic:false };
+    state.counter[slotIndex] = drinkData;
+    state.selection = [];
+    render();
   });
 
   // Select drink then tap customer to serve
@@ -505,6 +518,7 @@
     const t = performance.now();
     let needsRender = false;
     state.counter.forEach((d) => {
+      if (!d) return;
       if (d.status === 'brewing' && t >= d.readyAt) {
         d.status = 'ready';
         needsRender = true;
@@ -512,6 +526,7 @@
     });
     for (let i = state.customers.length - 1; i >= 0; i--) {
       const c = state.customers[i];
+      if (!c) continue;
       if (t - c.start > c.patience) {
         if (c.livesLeft && c.livesLeft > 1) {
           c.livesLeft -= 1;
@@ -520,7 +535,7 @@
           c.grumpy = true;
           needsRender = true;
         } else {
-          state.customers.splice(i, 1);
+          state.customers[i] = null;
           state.mistakes += 1;
           needsRender = true;
         }
