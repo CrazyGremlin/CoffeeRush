@@ -47,8 +47,13 @@
     .drink.toxic{border-color:#18b56b; box-shadow:0 0 0 2px #18b56b66 inset; background:#20422f}
     .drink.brewing{opacity:.9}
     .cup{font-size:22px}
-    .recipe{display:grid; grid-template-columns:repeat(3, minmax(0,1fr)); gap:4px; width:100%}
-    .recipe .chip{width:100%; display:flex; justify-content:center; font-size:14px; padding:3px 4px}
+    .recipe{display:grid; grid-template-columns:repeat(3, minmax(0,1fr)); gap:6px; width:100%}
+    .recipe .chip{width:100%; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:2px; font-size:14px; padding:4px 2px; background:#47362d; border:1px solid #594639; border-radius:8px; min-height:48px}
+    .recipe .chip-icon{font-size:18px; line-height:1}
+    .recipe .chip-label{font-size:11px; color:var(--muted); line-height:1.2}
+    .recipe .chip-empty{opacity:0.35; border-style:dashed}
+    .recipe .chip-empty .chip-icon,
+    .recipe .chip-empty .chip-label{opacity:0.65}
     .drink-name{margin-top:auto; font-weight:700; text-align:center; font-size:14px; color:var(--ink)}
     .timer{position:absolute; right:10px; top:10px; font-size:12px; background:#3b2e27; border:1px solid #4a3a31; border-radius:999px; padding:2px 6px; color:var(--muted)}
 
@@ -295,7 +300,17 @@
       if (state.heldDrinkId === d.id) drink.classList.add('sel');
       drink.dataset.id = d.id;
       const cup = el('div','cup', d.toxic ? '🧪' : '🧋');
-      const rec = el('div','recipe'); d.seq.forEach(k=>{ const ing = INGREDIENTS.find(i=>i.key===k); rec.append(el('span','chip',ing.label)); });
+      const rec = el('div','recipe');
+      for (let idx = 0; idx < 3; idx++) {
+        const key = d.seq[idx];
+        const ing = key ? INGREDIENTS.find(i=>i.key===key) : null;
+        const chip = el('div','chip' + (ing ? '' : ' chip-empty'));
+        const icon = el('div','chip-icon', ing ? ing.label : '—');
+        const label = el('div','chip-label', ing ? ing.name : '');
+        chip.append(icon);
+        chip.append(label);
+        rec.append(chip);
+      }
       const name = el('div','drink-name', d.name);
       const left = d.status==='brewing'? Math.max(0, Math.ceil((d.readyAt - performance.now())/1000)) : 0;
       const timer = el('div','timer', d.status==='brewing'? (left+'s') : 'Bereit');
