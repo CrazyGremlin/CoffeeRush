@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
-  <title>Coffee Rush — v0.4.0</title>
+  <title>Coffee Rush — v0.5.0</title>
   <meta name="description" content="Erste spielbare Version: One‑Finger Coffee‑Shop‑Spiel. Single‑File, offline‑fähig, keine Server‑Anbindung." />
   <style>
     :root{
@@ -31,13 +31,19 @@
 
     /* Kundenzeile */
     .row{display:flex; gap:10px; align-items:flex-start}
-    .customer{flex:1; min-width:0; background:#2b201b; border:1px solid #44352d; border-radius:14px; padding:8px; position:relative; transition:transform .08s ease, box-shadow .12s ease; cursor:pointer; display:flex; flex-direction:column}
+    .customer{flex:1; min-width:0; background:#2b201b; border:1px solid #44352d; border-radius:14px; padding:8px; position:relative; transition:transform .08s ease, box-shadow .12s ease; cursor:pointer; display:flex; flex-direction:column; overflow:hidden}
     .customer.angry{box-shadow:0 0 0 2px #ff8ba766 inset; transform:translateY(-1px)}
     .customer.grumpy{box-shadow:0 0 0 2px #ff8ba733 inset;}
     .customer.can-serve{box-shadow:0 0 0 2px var(--accent) inset;}
     .customer.empty{border-style:dashed; border-color:#4a3a31; color:var(--muted); align-items:center; justify-content:center; text-align:center; cursor:default; pointer-events:none}
     .customer.empty:hover{transform:none}
     .customer.empty .slot-placeholder{font-size:12px}
+    .customer.cooldown{border-style:dashed; border-color:#4a3a31; color:var(--muted); align-items:center; justify-content:center; text-align:center; cursor:default; pointer-events:none}
+    .customer.waste{align-items:center; justify-content:center; gap:10px; text-align:center; padding:14px 10px; background:#2b201b; border-style:solid; border-color:#5b4034;}
+    .customer.waste .waste-emoji{font-size:clamp(48px, min(18vw, 18vh), 96px); line-height:1; display:flex; align-items:center; justify-content:center; width:100%;}
+    .customer.waste .waste-label{font-size:12px; color:var(--muted);}
+    .waste-progress{width:100%; height:8px; background:#3a2c25; border:1px solid #4a3a31; border-radius:999px; overflow:hidden; position:relative;}
+    .waste-progress>i{display:block; height:100%; width:0; background:linear-gradient(90deg, var(--accent), #f4c27a); transition:width .12s ease;}
     .avatar{font-size:20px}
     .order{
       margin-top:6px;
@@ -62,6 +68,19 @@
     .heart.lost{opacity:0.35; transform:scale(0.9)}
     .heart.inactive{opacity:0.15; transform:scale(0.85)}
     .bubble{position:absolute; right:8px; top:-8px; background:#3b2e27; border:1px solid #4a3a31; border-radius:999px; padding:2px 8px; font-size:12px; color:var(--muted)}
+
+    @keyframes customerEnter {
+      0% { transform: translateY(-120%) scale(0.95); opacity:0; }
+      65% { opacity:1; }
+      100% { transform: translateY(0) scale(1); opacity:1; }
+    }
+    @keyframes customerLeave {
+      0% { transform: translateY(0) scale(1); opacity:1; }
+      100% { transform: translateY(-120%) scale(0.92); opacity:0; }
+    }
+    .customer.incoming{animation:customerEnter .45s cubic-bezier(0.22, 1, 0.36, 1);}
+    .customer.leaving{animation:customerLeave .45s cubic-bezier(0.55, 0.03, 0.65, 0.45) forwards; pointer-events:none;}
+    .customer.leaving-angry{box-shadow:0 0 0 2px #ff8ba766 inset;}
 
     /* Tresen */
     .counter{display:grid; gap:10px; grid-template-columns:repeat(3,minmax(0,1fr))}
@@ -154,7 +173,7 @@
 <script>
 (() => {
   // ===== Config =====
-  const VERSION = 'v0.4.0';
+  const VERSION = 'v0.5.0';
   const MAX_CUSTOMERS = 3;
   const MAX_COUNTER_SLOTS = 3;
   const PATIENCE_SECONDS_BY_HEART = new Map([
@@ -211,6 +230,8 @@
     heldDrinkId: null,       // ausgewähltes fertiges Getränk zum Servieren
     totalCustomersSpawned: 0,
     lastTick: performance.now(),
+    customerCooldowns: Array(MAX_CUSTOMERS).fill(0),
+    customerWaste: Array(MAX_CUSTOMERS).fill(null),
   };
 
   // ===== Utilities =====
@@ -261,6 +282,17 @@
         { freq: 420, duration: 0.12, volume: 0.12, type: 'triangle', gap: 0.02 },
         { freq: 560, duration: 0.16, volume: 0.11, type: 'triangle', gap: 0.02 },
       ],
+      customerEnter: [
+        { freq: 520, duration: 0.1, volume: 0.1, type: 'triangle' },
+        { freq: 380, duration: 0.12, volume: 0.08, type: 'sine', gap: 0.02 },
+      ],
+      cleanupTap: [
+        { freq: 420, duration: 0.06, volume: 0.08, type: 'square' },
+      ],
+      cleanupDone: [
+        { freq: 640, duration: 0.12, volume: 0.12, type: 'triangle' },
+        { freq: 820, duration: 0.14, volume: 0.11, type: 'triangle', gap: 0.02 },
+      ],
     };
     const play = (name) => {
       const preset = presets[name];
@@ -298,12 +330,52 @@
     });
     return { play };
   })();
+  const backgroundMusic = (() => {
+    const music = new Audio('coffee-shop-background-music.mp3');
+    music.loop = true;
+    music.preload = 'auto';
+    music.volume = 0.35;
+    let started = false;
+    const tryStart = () => {
+      if (started) return;
+      const playPromise = music.play();
+      if (playPromise && typeof playPromise.then === 'function') {
+        playPromise.then(() => {
+          started = true;
+        }).catch(() => {});
+      } else {
+        started = true;
+      }
+    };
+    const start = () => {
+      tryStart();
+    };
+    const stop = () => {
+      if (!started) return;
+      music.pause();
+      music.currentTime = 0;
+      started = false;
+    };
+    const unlockEvents = ['pointerdown', 'touchstart', 'keydown'];
+    unlockEvents.forEach((evt) => {
+      window.addEventListener(evt, () => {
+        tryStart();
+      }, { once: true, passive: true });
+    });
+    return { start, stop };
+  })();
   const el = (tag, cls, txt) => { const e = document.createElement(tag); if (cls) e.className=cls; if (txt!=null) e.textContent=txt; return e; };
   const uid = () => {
     let id = '';
     while (!id) id = Math.random().toString(36).slice(2,9);
     return id;
   };
+  const randInt = (min, max) => {
+    const low = Math.ceil(min);
+    const high = Math.floor(max);
+    return Math.floor(Math.random() * (high - low + 1)) + low;
+  };
+  const customerCooldownDelay = () => randInt(1000, 5000);
   const sameIngredients = (a, b) => {
     if (a.length !== b.length) return false;
     const counts = new Map();
@@ -364,17 +436,24 @@
       heartsMax: 5,
       number: index,
       grumpy,
+      enteringUntil: start + 520,
     };
   }
 
   function spawnCustomers() {
     if (!state.started) return false;
+    const nowT = performance.now();
     let added = false;
     for (let i = 0; i < MAX_CUSTOMERS; i++) {
-      if (!state.customers[i]) {
-        state.customers[i] = makeCustomer();
-        added = true;
-      }
+      if (state.customers[i]) continue;
+      if (state.customerWaste[i]) continue;
+      const cooldownUntil = state.customerCooldowns[i] || 0;
+      if (cooldownUntil && nowT < cooldownUntil) continue;
+      const cust = makeCustomer();
+      state.customers[i] = cust;
+      state.customerCooldowns[i] = 0;
+      added = true;
+      audio.play('customerEnter');
     }
     return added;
   }
@@ -414,6 +493,7 @@
   function render() {
     $('#score').textContent = state.score;
     $('#mistakes').textContent = state.mistakes;
+    const nowRender = performance.now();
 
     // Selection chips
     const sel = $('#selection');
@@ -438,10 +518,35 @@
     // Customers
     const cwrap = $('#customers'); cwrap.innerHTML = '';
     for (let i = 0; i < MAX_CUSTOMERS; i++) {
+      const waste = state.customerWaste[i];
       const c = state.customers[i];
+      const cooldownUntil = state.customerCooldowns[i] || 0;
+      if (waste) {
+        const box = el('div','customer waste');
+        box.tabIndex = 0;
+        box.setAttribute('role','button');
+        box.dataset.slot = String(i);
+        const emoji = el('div','waste-emoji','💩');
+        box.append(emoji);
+        const label = el('div','waste-label','Aufräumen – tippen!');
+        box.append(label);
+        const bar = el('div','waste-progress');
+        const fill = el('i');
+        const pct = Math.max(0, Math.min(1, waste.clicksDone / waste.clicksRequired));
+        fill.style.width = (pct * 100).toFixed(1) + '%';
+        bar.append(fill);
+        box.append(bar);
+        cwrap.append(box);
+        continue;
+      }
       if (!c) {
-        const placeholder = el('div','customer empty');
-        placeholder.append(el('div','slot-placeholder','Freier Platz'));
+        const placeholderCls = (cooldownUntil && cooldownUntil > nowRender) ? 'customer cooldown' : 'customer empty';
+        const placeholder = el('div', placeholderCls);
+        placeholder.dataset.slot = String(i);
+        const placeholderText = (cooldownUntil && cooldownUntil > nowRender)
+          ? 'Neuer Kunde unterwegs …'
+          : 'Freier Platz';
+        placeholder.append(el('div','slot-placeholder', placeholderText));
         placeholder.setAttribute('aria-hidden','true');
         cwrap.append(placeholder);
         continue;
@@ -449,7 +554,15 @@
       const r = RECIPES.find(r=>r.id===c.orderId);
       const box = el('div','customer'); box.tabIndex = 0;
       box.setAttribute('role','button');
+      box.dataset.id = c.id;
+      box.dataset.slot = String(i);
       if (c.grumpy) box.classList.add('grumpy');
+      if (c.enteringUntil && nowRender < c.enteringUntil) box.classList.add('incoming');
+      else if (c.enteringUntil && nowRender >= c.enteringUntil) delete c.enteringUntil;
+      if (c.leaving) {
+        box.classList.add('leaving');
+        if (c.leftAngry) box.classList.add('leaving-angry');
+      }
       const av = el('div','avatar', c.face); box.append(av);
       const bub = el('div','bubble', r ? r.name : 'Bestellung'); box.append(bub);
       const order = el('div','order');
@@ -460,10 +573,11 @@
       box.append(order);
       const patience = el('div','patience'); const fill = el('i'); patience.append(fill); box.append(patience);
       // Patience percent
-      const elapsed = performance.now() - c.start; const pct = Math.max(0, 1 - elapsed / c.patience);
+      const elapsed = nowRender - c.start; const pct = Math.max(0, 1 - elapsed / c.patience);
       fill.style.width = (pct*100).toFixed(1)+'%';
       fill.style.background = pct>0.5? 'linear-gradient(90deg, var(--ok), #bdf59f)': pct>0.25? 'linear-gradient(90deg, var(--warn), #ffe8a8)': 'linear-gradient(90deg, var(--bad), #ffb3c3)';
-      if (c.angryUntil && performance.now() < c.angryUntil) box.classList.add('angry');
+      if (c.angryUntil && nowRender < c.angryUntil) box.classList.add('angry');
+      else box.classList.remove('angry');
       const hearts = el('div','hearts');
       const heartsMax = c.heartsMax || 5;
       const livesTotal = typeof c.livesTotal === 'number' ? c.livesTotal : heartsMax;
@@ -475,20 +589,19 @@
         hearts.append(heart);
       }
       box.append(hearts);
-      if (state.heldDrinkId) {
+      if (!c.leaving && state.heldDrinkId) {
         const held = state.counter.find(d => d && d.id === state.heldDrinkId);
         if (held && held.status === 'ready' && !held.toxic) {
           const matches = sameIngredients(held.seq, c.orderSeq);
           if (matches) box.classList.add('can-serve');
         }
       }
-      box.dataset.id = c.id;
       cwrap.append(box);
     }
 
     // Counter drinks
     const dwrap = $('#counter'); dwrap.innerHTML = '';
-    const nowRender = performance.now();
+    const nowCounter = performance.now();
     for (let i = 0; i < MAX_COUNTER_SLOTS; i++) {
       const d = state.counter[i];
       if (!d) {
@@ -521,7 +634,7 @@
       slot.append(progress);
       const status = el('div','slot-status');
       slot.append(status);
-      updateDrinkSlotVisual(slot, d, nowRender);
+      updateDrinkSlotVisual(slot, d, nowCounter);
       dwrap.append(slot);
     }
   }
@@ -539,21 +652,23 @@
     state.heldDrinkId = null;
     state.totalCustomersSpawned = 0;
     state.lastTick = performance.now();
+    state.customerCooldowns = Array(MAX_CUSTOMERS).fill(0);
+    state.customerWaste = Array(MAX_CUSTOMERS).fill(null);
     if (levelOverlay) levelOverlay.classList.add('hidden');
     spawnCustomers();
     render();
     showToast(`Level ${sanitized} gestartet`);
     audio.play('levelStart');
+    backgroundMusic.start();
   }
 
   function updateLiveElements() {
     const nowT = performance.now();
     $$('.customer').forEach((box) => {
-      if (box.classList.contains('empty')) return;
-      const cid = box.dataset.id;
-      if (!cid) return;
-      const cust = state.customers.find((c) => c && c.id === cid);
-      if (!cust) return;
+      if (box.classList.contains('empty') || box.classList.contains('waste') || box.classList.contains('cooldown')) return;
+      const slotIndex = Number(box.dataset.slot || '-1');
+      const cust = slotIndex >= 0 ? state.customers[slotIndex] : null;
+      if (!cust || cust.leaving) return;
       const fill = box.querySelector('.patience i');
       if (fill) {
         const pct = Math.max(0, 1 - (nowT - cust.start) / cust.patience);
@@ -624,17 +739,33 @@
     if (!state.started) return;
     const cEl = e.target.closest('.customer');
     if (!cEl) return;
+    if (cEl.classList.contains('waste')) {
+      const slotIndex = Number(cEl.dataset.slot || '-1');
+      if (slotIndex < 0) return;
+      const waste = state.customerWaste[slotIndex];
+      if (!waste) return;
+      waste.clicksDone = Math.min(waste.clicksRequired, waste.clicksDone + 1);
+      audio.play('cleanupTap');
+      if (waste.clicksDone >= waste.clicksRequired) {
+        state.customerWaste[slotIndex] = null;
+        state.customerCooldowns[slotIndex] = performance.now() + customerCooldownDelay();
+        audio.play('cleanupDone');
+      }
+      render();
+      return;
+    }
     if (cEl.classList.contains('empty')) return;
+    if (cEl.classList.contains('cooldown')) return;
     if (!state.heldDrinkId) {
       showToast('Wähle zuerst ein Getränk am Tresen');
       return;
     }
-    const cid = cEl.dataset.id;
-    const custIndex = state.customers.findIndex((c) => c && c.id === cid);
-    const cust = custIndex >= 0 ? state.customers[custIndex] : null;
+    const slotIndex = Number(cEl.dataset.slot || '-1');
+    if (slotIndex < 0) return;
+    const cust = state.customers[slotIndex];
     const drinkIndex = state.counter.findIndex((d) => d && d.id === state.heldDrinkId);
     const drink = drinkIndex >= 0 ? state.counter[drinkIndex] : null;
-    if (!cust || !drink) return;
+    if (!cust || !drink || cust.leaving) return;
     const want = RECIPES.find((r) => r.id === cust.orderId);
     const ok = want && !drink.toxic && sameIngredients(want.seq, drink.seq);
     if (ok) {
@@ -642,10 +773,11 @@
       const elapsed = performance.now() - cust.start;
       const pct = Math.max(0, 1 - elapsed / cust.patience);
       state.score += Math.round(10 * pct);
-      state.customers[custIndex] = null;
+      cust.leaving = true;
+      cust.leaveAt = performance.now() + 480;
+      cust.leftHappy = true;
       state.counter[drinkIndex] = null;
       state.heldDrinkId = null;
-      spawnCustomers();
       audio.play('success');
     } else {
       const nowT = performance.now();
@@ -761,9 +893,26 @@
         needsRender = true;
       }
     }
-    for (let i = state.customers.length - 1; i >= 0; i--) {
+    for (let i = 0; i < state.customers.length; i++) {
       const c = state.customers[i];
       if (!c) continue;
+      if (c.leaving) {
+        if (!c.leaveAt) c.leaveAt = t + 420;
+        if (t >= c.leaveAt) {
+          const leftAngry = !!c.leftAngry;
+          state.customers[i] = null;
+          if (leftAngry) {
+            state.customerWaste[i] = {
+              clicksRequired: randInt(5, 15),
+              clicksDone: 0,
+            };
+          } else {
+            state.customerCooldowns[i] = t + customerCooldownDelay();
+          }
+          needsRender = true;
+        }
+        continue;
+      }
       if (t - c.start > c.patience) {
         if (c.livesLeft && c.livesLeft > 1) {
           c.livesLeft -= 1;
@@ -773,8 +922,13 @@
           c.grumpy = true;
           needsRender = true;
         } else {
-          state.customers[i] = null;
+          c.leaving = true;
+          c.leftAngry = true;
+          c.leaveAt = t + 420;
+          c.angryUntil = t + 2500;
+          c.grumpy = true;
           state.mistakes += 1;
+          audio.play('error');
           needsRender = true;
         }
       }
