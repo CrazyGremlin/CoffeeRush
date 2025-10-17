@@ -38,25 +38,40 @@
     .bubble{position:absolute; right:8px; top:-8px; background:#3b2e27; border:1px solid #4a3a31; border-radius:999px; padding:2px 8px; font-size:12px; color:var(--muted)}
 
     /* Tresen */
-    .counter{display:grid; gap:8px; grid-template-columns:repeat(3,minmax(0,1fr))}
-    .slot{min-height:96px; background:#2b201b; border:1px solid #43352d; border-radius:14px; padding:8px; position:relative; display:flex; flex-direction:column; justify-content:flex-start; align-items:flex-start; gap:6px}
-    .slot.empty{border-style:dashed; border-color:#4a3a31; color:var(--muted); align-items:center; justify-content:center; text-align:center; font-size:12px;}
+    .counter{display:grid; gap:10px; grid-template-columns:repeat(3,minmax(0,1fr))}
+    .slot{min-height:110px; background:#2b201b; border:1px solid #43352d; border-radius:14px; padding:10px; position:relative; display:flex; flex-direction:column; gap:8px; cursor:pointer; transition:transform .08s ease, box-shadow .12s ease}
+    .slot.empty{border-style:dashed; border-color:#4a3a31; color:var(--muted); align-items:center; justify-content:center; text-align:center; font-size:12px; cursor:default}
+    .slot.empty:hover{transform:none}
     .slot-placeholder{opacity:0.7;}
-    .drink{display:flex; align-items:center; gap:6px; background:#3a2c25; border:2px solid #695141; border-radius:12px; padding:8px; cursor:pointer; user-select:none}
-    .drink.ready{border-color:#6bbf59; box-shadow:0 0 0 2px #6bbf5966 inset}
-    .drink.toxic{border-color:#18b56b; box-shadow:0 0 0 2px #18b56b66 inset; background:#20422f}
-    .drink.brewing{opacity:.9}
+    .slot.ready{border-color:#6bbf59; box-shadow:0 0 0 2px #6bbf5966 inset}
+    .slot.toxic{border-color:#18b56b; box-shadow:0 0 0 2px #18b56b66 inset; background:#20422f}
+    .slot.brewing{opacity:.92}
+    .slot.sel{outline:2px solid var(--accent);}
+    .slot:focus-visible{outline:2px solid var(--accent); outline-offset:2px}
+    .slot:hover{transform:translateY(-1px)}
+    .slot.empty:hover{transform:none}
+    .drink{display:flex; align-items:flex-start; gap:8px; user-select:none}
+    .drink-info{display:flex; flex-direction:column; gap:4px; min-width:0}
     .cup{font-size:22px}
-    .recipe{display:flex; gap:4px; flex-wrap:wrap}
-    .timer{position:absolute; right:10px; top:10px; font-size:12px; background:#3b2e27; border:1px solid #4a3a31; border-radius:999px; padding:2px 6px; color:var(--muted)}
+    .drink-name{font-weight:700; line-height:1.2}
+    .recipe{display:flex; gap:4px; flex-wrap:nowrap; margin-top:4px}
+    .recipe-chip{font-size:14px; padding:3px 6px; border-radius:8px; white-space:nowrap}
+    .timer{position:absolute; right:10px; top:-10px; font-size:12px; background:#3b2e27; border:1px solid #4a3a31; border-radius:999px; padding:2px 8px; color:var(--muted)}
 
     /* Auswahl & Buttons */
-    .selection{display:flex; gap:6px; flex-wrap:wrap; min-height:34px}
+    .brew-bar{display:flex; gap:10px; align-items:center; margin-top:12px}
+    .selection{flex:1; display:flex; gap:6px; flex-wrap:wrap; min-height:44px; align-items:center}
+    .selection-empty{font-size:12px; color:var(--muted)}
     .chip{font-size:18px; background:#3a2c25; border:1px solid #4a3a31; border-radius:10px; padding:4px 8px}
+    .chip-selectable{display:inline-flex; align-items:center; gap:6px; cursor:pointer; transition:background .12s ease, transform .12s ease}
+    .chip-selectable:hover{background:#47372f}
+    .chip-selectable:active{transform:scale(0.97)}
+    .chip-selectable:focus-visible{outline:2px solid var(--accent); outline-offset:2px}
     .btns{display:grid; grid-template-columns: repeat(3, 1fr); gap:8px; margin-top:10px}
     .btn{appearance:none; border:1px solid #5a463b; background:linear-gradient(#4b3a31,#3c2f28); color:var(--ink); padding:14px 12px; border-radius:14px; font-weight:800; font-size:18px; text-align:center; cursor:pointer; user-select:none}
     .btn:active{transform:translateY(1px) scale(.99)}
     .btn.primary{border-color:#8a6a54; background:linear-gradient(#a07756,#7e5c45);}
+    .btn.primary#btnBrew{white-space:nowrap; padding:14px 16px}
     .btn.warn{border-color:#9b7b35; background:linear-gradient(#c39c4a,#9a7a3a);}
     .btn.danger{border-color:#8a3b4b; background:linear-gradient(#a05463,#7a3b46);}    
 
@@ -89,12 +104,10 @@
     <!-- Auswahl & Buttons -->
     <section class="section">
       <div class="hint">Zutaten auswählen (Reihenfolge zählt):</div>
-      <div class="selection" id="selection"></div>
       <div class="btns" id="ingredients"></div>
-      <div class="row" style="margin-top:10px; gap:8px">
-        <button id="btnUndo" class="btn danger" style="flex:1">↩︎ Rückgängig</button>
-        <button id="btnClear" class="btn" style="flex:1">✕ Löschen</button>
-        <button id="btnBrew" class="btn primary" style="flex:2">☕ ZUBEREITEN</button>
+      <div class="brew-bar">
+        <div class="selection" id="selection"></div>
+        <button id="btnBrew" class="btn primary">☕ ZUBEREITEN</button>
       </div>
       <div class="hint" style="margin-top:6px">Nicht jedes Rezept hat gleich viele Schritte. Falsche Kombinationen werden abgelehnt.</div>
     </section>
@@ -232,10 +245,24 @@
     $('#mistakes').textContent = state.mistakes;
 
     // Selection chips
-    const sel = $('#selection'); sel.innerHTML = '';
-    state.selection.forEach(k => {
-      const ing = INGREDIENTS.find(i=>i.key===k); sel.append(el('span','chip', ing ? ing.label : k));
-    });
+    const sel = $('#selection');
+    sel.innerHTML = '';
+    if (state.selection.length === 0) {
+      sel.append(el('div','selection-empty','Noch keine Zutaten ausgewählt'));
+    } else {
+      state.selection.forEach((k, idx) => {
+        const ing = INGREDIENTS.find(i=>i.key===k);
+        const chip = el('button','chip chip-selectable', ing ? ing.label : k);
+        chip.type = 'button';
+        chip.title = ing ? `Zutat entfernen: ${ing.name}` : 'Zutat entfernen';
+        chip.setAttribute('aria-label', chip.title);
+        chip.addEventListener('click', () => {
+          state.selection.splice(idx, 1);
+          render();
+        });
+        sel.append(chip);
+      });
+    }
 
     // Customers
     const cwrap = $('#customers'); cwrap.innerHTML = '';
@@ -283,21 +310,36 @@
     const dwrap = $('#counter'); dwrap.innerHTML = '';
     for (let i = 0; i < MAX_COUNTER_SLOTS; i++) {
       const d = state.counter[i];
-      const slot = el('div','slot' + (d ? '' : ' empty'));
       if (!d) {
+        const slot = el('div','slot empty');
         slot.append(el('div','slot-placeholder','Freier Platz'));
         dwrap.append(slot);
         continue;
       }
-      const drink = el('div','drink '+d.status + (d.toxic?' toxic':''));
-      if (state.heldDrinkId === d.id) drink.classList.add('sel');
-      drink.dataset.id = d.id;
+      const slot = el('div','slot');
+      slot.tabIndex = 0;
+      slot.setAttribute('role','button');
+      slot.dataset.id = d.id;
+      slot.classList.add(d.status);
+      if (d.toxic) slot.classList.add('toxic');
+      if (state.heldDrinkId === d.id) slot.classList.add('sel');
+      const drink = el('div','drink');
+      const info = el('div','drink-info');
       const cup = el('div','cup', d.toxic ? '🧪' : '🧋');
-      const name = el('div','', d.name);
-      const rec = el('div','recipe'); d.seq.forEach(k=>{ const ing = INGREDIENTS.find(i=>i.key===k); rec.append(el('span','chip',ing.label)); });
+      const name = el('div','drink-name', d.name);
+      const rec = el('div','recipe');
+      d.seq.forEach(k=>{
+        const ing = INGREDIENTS.find(i=>i.key===k);
+        rec.append(el('span','chip recipe-chip', ing ? ing.label : k));
+      });
+      info.append(name);
+      info.append(rec);
+      drink.append(cup);
+      drink.append(info);
+      slot.append(drink);
       const left = d.status==='brewing'? Math.max(0, Math.ceil((d.readyAt - performance.now())/1000)) : 0;
       const timer = el('div','timer', d.status==='brewing'? (left+'s') : 'Bereit');
-      drink.append(cup); drink.append(name); drink.append(rec); slot.append(drink); slot.append(timer);
+      slot.append(timer);
       dwrap.append(slot);
     }
   }
@@ -318,17 +360,20 @@
       else box.classList.remove('angry');
     });
     $$('.slot').forEach((slot) => {
-      const drinkEl = slot.querySelector('.drink');
       const timer = slot.querySelector('.timer');
-      if (!drinkEl || !timer) return;
-      const did = drinkEl.dataset.id;
+      const did = slot.dataset.id;
+      if (!timer || !did) return;
       const drink = state.counter.find((d) => d.id === did);
       if (!drink) return;
       if (drink.status === 'brewing') {
         const left = Math.max(0, Math.ceil((drink.readyAt - nowT)/1000));
         timer.textContent = left + 's';
+        slot.classList.add('brewing');
+        slot.classList.remove('ready');
       } else {
         timer.textContent = 'Bereit';
+        slot.classList.add('ready');
+        slot.classList.remove('brewing');
       }
     });
   }
@@ -365,9 +410,8 @@
 
   const handleCounterTap = (e) => {
     const slot = e.target.closest('.slot');
-    const drinkEl = e.target.closest('.drink') || (slot && slot.querySelector('.drink'));
-    if (!drinkEl) return;
-    const id = drinkEl.dataset.id;
+    if (!slot || slot.classList.contains('empty')) return;
+    const id = slot.dataset.id;
     if (!id) return;
     const drink = state.counter.find((x) => x.id === id);
     if (!drink) return;
@@ -435,9 +479,6 @@
       grid.append(b);
     });
   }
-
-  $('#btnUndo').addEventListener('click', () => { state.selection.pop(); render(); });
-  $('#btnClear').addEventListener('click', () => { state.selection = []; render(); });
 
   // Prepare/Brew
   $('#btnBrew').addEventListener('click', () => {
