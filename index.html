@@ -42,15 +42,15 @@
     .slot{min-height:96px; background:#2b201b; border:1px solid #43352d; border-radius:14px; padding:8px 8px 12px; position:relative; display:flex; flex-direction:column; align-items:stretch; gap:6px}
     .slot.empty{border-style:dashed; border-color:#4a3a31; color:var(--muted); align-items:center; justify-content:center; text-align:center; font-size:12px;}
     .slot-placeholder{opacity:0.7;}
-    .drink{display:flex; flex-direction:column; align-items:center; gap:6px; width:100%; background:#3a2c25; border:2px solid #695141; border-radius:12px; padding:8px; cursor:pointer; user-select:none; text-align:center}
+    .drink{display:flex; flex-direction:column; align-items:stretch; gap:8px; width:100%; background:#3a2c25; border:2px solid #695141; border-radius:12px; padding:10px 10px 12px; cursor:pointer; user-select:none; text-align:left}
     .drink.ready{border-color:#6bbf59; box-shadow:0 0 0 2px #6bbf5966 inset}
     .drink.toxic{border-color:#18b56b; box-shadow:0 0 0 2px #18b56b66 inset; background:#20422f}
     .drink.brewing{opacity:.9}
-    .cup{font-size:22px}
-    .recipe{display:grid; grid-template-columns:repeat(3, minmax(0,1fr)); gap:6px; width:100%}
-    .recipe .chip{width:100%; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:2px; font-size:14px; padding:4px 2px; background:#47362d; border:1px solid #594639; border-radius:8px; min-height:48px}
-    .recipe .chip-icon{font-size:18px; line-height:1}
-    .recipe .chip-label{font-size:11px; color:var(--muted); line-height:1.2}
+    .cup{font-size:24px; line-height:1; text-align:center}
+    .recipe{display:flex; justify-content:space-between; gap:6px; width:100%}
+    .recipe .chip{flex:1; min-width:0; display:flex; flex-direction:column; align-items:flex-start; justify-content:flex-start; gap:2px; font-size:14px; padding:4px 6px; background:#47362d; border:1px solid #594639; border-radius:8px; min-height:48px}
+    .recipe .chip-icon{font-size:20px; line-height:1}
+    .recipe .chip-label{font-size:11px; color:var(--muted); line-height:1.2; text-align:left}
     .recipe .chip-empty{opacity:0.35; border-style:dashed}
     .recipe .chip-empty .chip-icon,
     .recipe .chip-empty .chip-label{opacity:0.65}
@@ -311,10 +311,14 @@
         chip.append(label);
         rec.append(chip);
       }
-      const name = el('div','drink-name', d.name);
       const left = d.status==='brewing'? Math.max(0, Math.ceil((d.readyAt - performance.now())/1000)) : 0;
       const timer = el('div','timer', d.status==='brewing'? (left+'s') : 'Bereit');
-      drink.append(cup); drink.append(rec); slot.append(drink); slot.append(name); slot.append(timer);
+      const name = el('div','drink-name', d.name);
+      drink.append(cup);
+      drink.append(rec);
+      drink.append(name);
+      slot.append(drink);
+      slot.append(timer);
       dwrap.append(slot);
     }
   }
