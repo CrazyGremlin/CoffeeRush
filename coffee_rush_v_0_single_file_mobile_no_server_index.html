@@ -139,7 +139,11 @@
   const $ = sel => document.querySelector(sel);
   const $$ = sel => Array.from(document.querySelectorAll(sel));
   const el = (tag, cls, txt) => { const e = document.createElement(tag); if (cls) e.className=cls; if (txt!=null) e.textContent=txt; return e; };
-  const uid = () => Math.random().toString(36).slice(2,9);
+  const uid = () => {
+    let id = '';
+    while (!id) id = Math.random().toString(36).slice(2,9);
+    return id;
+  };
   const bySeq = seq => RECIPES.find(r => r.seq.join('-') === seq.join('-'));
 
   // Patience helper
