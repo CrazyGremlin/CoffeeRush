@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
-  <title>Coffee Rush — v0.6.0</title>
+  <title>Coffee Rush — v0.7.0</title>
   <meta name="description" content="Erste spielbare Version: One‑Finger Coffee‑Shop‑Spiel. Single‑File, offline‑fähig, keine Server‑Anbindung." />
   <style>
     :root{
@@ -31,17 +31,17 @@
 
     /* Kundenzeile */
     .row{display:flex; gap:10px; align-items:flex-start}
-    .customer{flex:1; min-width:0; background:#2b201b; border:1px solid #44352d; border-radius:14px; padding:8px; position:relative; transition:transform .08s ease, box-shadow .12s ease; cursor:pointer; display:flex; flex-direction:column; overflow:hidden}
+    .customer{flex:1; min-width:0; background:#2b201b; border:1px solid #44352d; border-radius:14px; padding:8px; position:relative; transition:transform .08s ease, box-shadow .12s ease; cursor:pointer; display:flex; flex-direction:column; overflow:hidden; min-height:188px}
     .customer.angry{box-shadow:0 0 0 2px #ff8ba766 inset; transform:translateY(-1px)}
     .customer.grumpy{box-shadow:0 0 0 2px #ff8ba733 inset;}
     .customer.can-serve{box-shadow:0 0 0 2px var(--accent) inset;}
-    .customer.empty{border-style:dashed; border-color:#4a3a31; color:var(--muted); align-items:center; justify-content:center; text-align:center; cursor:default; pointer-events:none}
+    .customer.empty{border-style:dashed; border-color:#4a3a31; color:var(--muted); align-items:center; justify-content:center; text-align:center; cursor:default; pointer-events:none; min-height:188px}
     .customer.empty:hover{transform:none}
     .customer.empty .slot-placeholder{font-size:12px}
-    .customer.cooldown{border-style:dashed; border-color:#4a3a31; color:var(--muted); align-items:center; justify-content:center; text-align:center; cursor:default; pointer-events:none}
-    .customer.waste{align-items:center; justify-content:center; gap:10px; text-align:center; padding:14px 10px; background:#2b201b; border-style:solid; border-color:#5b4034;}
+    .customer.cooldown{border-style:dashed; border-color:#4a3a31; color:var(--muted); align-items:center; justify-content:center; text-align:center; cursor:default; pointer-events:none; min-height:188px}
+    .customer.waste{align-items:center; justify-content:center; gap:10px; text-align:center; padding:14px 10px; background:#2b201b; border-style:solid; border-color:#5b4034; min-height:188px}
     .customer.waste .waste-emoji{font-size:clamp(48px, min(18vw, 18vh), 96px); line-height:1; display:flex; align-items:center; justify-content:center; width:100%;}
-    .customer.waste .waste-label{font-size:12px; color:var(--muted);}
+    .customer.waste .waste-label{font-size:12px; color:var(--muted); display:flex; align-items:center; justify-content:center; min-height:2.6em; text-align:center; padding:0 6px;}
     .waste-progress{width:100%; height:8px; background:#3a2c25; border:1px solid #4a3a31; border-radius:999px; overflow:hidden; position:relative;}
     .waste-progress>i{display:block; height:100%; width:0; background:linear-gradient(90deg, var(--accent), #f4c27a); transition:width .12s ease;}
     .avatar{font-size:20px}
@@ -60,6 +60,7 @@
       white-space:nowrap;
       min-height:32px;
     }
+    .order-name{margin-top:4px; font-size:12px; font-weight:700; text-align:center; line-height:1.15; min-height:2.6em; display:flex; align-items:center; justify-content:center; padding:0 6px; text-wrap:balance; white-space:normal; overflow-wrap:break-word; word-break:break-word; color:var(--ink);}
     .order-emoji{display:block}
     .patience{height:6px; background:#3a2c25; border:1px solid #4a3a31; border-radius:999px; overflow:hidden; margin-top:6px}
     .patience>i{display:block; height:100%; background:linear-gradient(90deg, var(--ok), #bdf59f)}
@@ -67,7 +68,7 @@
     .heart{transition:transform .12s ease, opacity .12s ease}
     .heart.lost{opacity:0.35; transform:scale(0.9)}
     .heart.inactive{opacity:0.15; transform:scale(0.85)}
-    .bubble{position:absolute; right:8px; top:-8px; background:#3b2e27; border:1px solid #4a3a31; border-radius:999px; padding:2px 8px; font-size:12px; color:var(--muted)}
+    .bubble{position:absolute; right:8px; top:-8px; background:#3b2e27; border:1px solid #4a3a31; border-radius:999px; padding:2px 8px; font-size:11px; color:var(--muted)}
 
     @keyframes customerEnter {
       0% { transform: translateY(-120%) scale(0.95); opacity:0; }
@@ -84,10 +85,10 @@
 
     /* Tresen */
     .counter{display:grid; gap:10px; grid-template-columns:repeat(3,minmax(0,1fr))}
-    .slot{min-height:110px; background:#2b201b; border:1px solid #43352d; border-radius:14px; padding:10px; position:relative; display:flex; flex-direction:column; gap:8px; cursor:pointer; transition:transform .08s ease, box-shadow .12s ease; align-items:center;}
+    .slot{min-height:134px; background:#2b201b; border:1px solid #43352d; border-radius:14px; padding:10px; position:relative; display:flex; flex-direction:column; gap:8px; cursor:pointer; transition:transform .08s ease, box-shadow .12s ease; align-items:center;}
     .slot.empty{border-style:dashed; border-color:#4a3a31; color:var(--muted); align-items:center; justify-content:center; text-align:center; font-size:12px; cursor:default}
     .slot.empty:hover{transform:none}
-    .slot-placeholder{opacity:0.7;}
+    .slot-placeholder{opacity:0.7; min-height:2.6em; display:flex; align-items:center; justify-content:center; padding:0 6px; text-align:center; white-space:normal; overflow-wrap:break-word; word-break:break-word;}
     .slot.ready{border-color:#6bbf59; box-shadow:0 0 0 2px #6bbf5966 inset}
     .slot.toxic{border-color:#18b56b; box-shadow:0 0 0 2px #18b56b66 inset; background:#20422f}
     .slot.brewing{opacity:.92}
@@ -97,10 +98,11 @@
     .slot.empty:hover{transform:none}
     .drink-ready{display:flex; flex-direction:column; align-items:center; gap:6px; width:100%;}
     .drink-order{width:100%; justify-content:center;}
-    .drink-name{font-weight:700; line-height:1.2; text-align:center; font-size:14px; margin-top:4px;}
+    .drink-name{font-weight:700; line-height:1.15; text-align:center; font-size:12px; margin-top:4px; min-height:2.6em; display:flex; align-items:center; justify-content:center; padding:0 6px; text-wrap:balance; white-space:normal; overflow-wrap:break-word; word-break:break-word;}
     .slot-progress{width:100%; height:6px; background:#3a2c25; border:1px solid #4a3a31; border-radius:999px; overflow:hidden; position:relative;}
     .slot-progress>i{display:block; height:100%; width:0; background:linear-gradient(90deg, var(--accent), #f4c27a); transition:width .12s ease;}
     .slot-status{font-size:12px; color:var(--muted); margin-top:4px; text-align:center; min-height:16px;}
+    .btn:disabled{opacity:0.4; cursor:default; transform:none;}
 
     /* Auswahl & Buttons */
     .brew-bar{display:flex; gap:10px; align-items:center; margin-top:12px}
@@ -173,9 +175,10 @@
 <script>
 (() => {
   // ===== Config =====
-  const VERSION = 'v0.6.0';
+  const VERSION = 'v0.7.0';
   const MAX_CUSTOMERS = 3;
   const MAX_COUNTER_SLOTS = 3;
+  const MAX_SELECTION = 3;
   const PATIENCE_SECONDS_BY_HEART = new Map([
     [5, 8],
     [4, 7],
@@ -197,6 +200,7 @@
   // Rezepte: Sequenz + Brew-Time (Sekunden)
   const RECIPES = [
     { id:'espresso', name:'Espresso', seq:['ESP'], time:2 },
+    { id:'double-espresso', name:'Doppelter Espresso', seq:['ESP','ESP'], time:3 },
     { id:'milk-solo', name:'Milchglas', seq:['MIL'], time:2 },
     { id:'choco-solo', name:'Schokobecher', seq:['CHO'], time:2 },
     { id:'ice-solo', name:'Eisbecher', seq:['ICE'], time:2 },
@@ -217,6 +221,7 @@
     { id:'sweet-cream', name:'Sweet Cream', seq:['MIL','CRM','SUG'], time:4 },
   ];
   const TOXIC = { id:'toxic', name:'Giftgetränk', emoji:'☠️', time:3 };
+  const ingredientButtons = [];
 
   // ===== State =====
   const state = {
@@ -519,6 +524,11 @@
         sel.append(chip);
       });
     }
+    const limitReached = state.selection.length >= MAX_SELECTION;
+    ingredientButtons.forEach(btn => {
+      btn.disabled = limitReached;
+      btn.setAttribute('aria-disabled', limitReached ? 'true' : 'false');
+    });
 
     // Customers
     const cwrap = $('#customers'); cwrap.innerHTML = '';
@@ -533,7 +543,7 @@
         box.dataset.slot = String(i);
         const emoji = el('div','waste-emoji','💩');
         box.append(emoji);
-        const label = el('div','waste-label','Aufräumen – tippen!');
+        const label = el('div','waste-label','Aufräumen!');
         box.append(label);
         const bar = el('div','waste-progress');
         const fill = el('i');
@@ -578,6 +588,8 @@
         order.append(el('span','order-emoji', ing ? ing.label : k));
       });
       box.append(order);
+      const orderName = el('div','order-name', r ? r.name : 'Getränk');
+      box.append(orderName);
       const patience = el('div','patience'); const fill = el('i'); patience.append(fill); box.append(patience);
       // Patience percent
       const elapsed = Math.max(0, nowRender - c.start);
@@ -822,15 +834,19 @@
     const grid = $('#ingredients');
     INGREDIENTS.forEach(ing => {
       const b = el('button','btn');
+      b.type = 'button';
+      b.dataset.ingKey = ing.key;
       b.textContent = ing.label + ' ';
       const small = el('small'); small.textContent = ing.name; small.style.display='block'; small.style.fontSize='12px'; small.style.opacity='0.8';
       b.append(small);
       b.addEventListener('click', () => {
+        if (state.selection.length >= MAX_SELECTION) return;
         state.selection.push(ing.key);
         render();
         audio.play('select');
       });
       grid.append(b);
+      ingredientButtons.push(b);
     });
   }
 
