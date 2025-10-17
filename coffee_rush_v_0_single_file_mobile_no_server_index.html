@@ -155,7 +155,12 @@
   }
 
   function spawnCustomers() {
-    while (state.customers.length < MAX_CUSTOMERS) state.customers.push(makeCustomer());
+    let added = false;
+    while (state.customers.length < MAX_CUSTOMERS) {
+      state.customers.push(makeCustomer());
+      added = true;
+    }
+    return added;
   }
 
   function freeCounterSlot() {
@@ -215,6 +220,37 @@
       const timer = el('div','timer', d.status==='brewing'? (left+'s') : 'Bereit');
       drink.append(cup); drink.append(name); drink.append(rec); slot.append(drink); slot.append(timer);
       dwrap.append(slot);
+    });
+  }
+
+  function updateLiveElements() {
+    const nowT = performance.now();
+    $$('.customer').forEach((box) => {
+      const cid = box.dataset.id;
+      const cust = state.customers.find((c) => c.id === cid);
+      if (!cust) return;
+      const fill = box.querySelector('.patience i');
+      if (fill) {
+        const pct = Math.max(0, 1 - (nowT - cust.start) / cust.patience);
+        fill.style.width = (pct * 100).toFixed(1) + '%';
+        fill.style.background = pct>0.5? 'linear-gradient(90deg, var(--ok), #bdf59f)': pct>0.25? 'linear-gradient(90deg, var(--warn), #ffe8a8)': 'linear-gradient(90deg, var(--bad), #ffb3c3)';
+      }
+      if (cust.angryUntil && nowT < cust.angryUntil) box.classList.add('angry');
+      else box.classList.remove('angry');
+    });
+    $$('.slot').forEach((slot) => {
+      const drinkEl = slot.querySelector('.drink');
+      const timer = slot.querySelector('.timer');
+      if (!drinkEl || !timer) return;
+      const did = drinkEl.dataset.id;
+      const drink = state.counter.find((d) => d.id === did);
+      if (!drink) return;
+      if (drink.status === 'brewing') {
+        const left = Math.max(0, Math.ceil((drink.readyAt - nowT)/1000));
+        timer.textContent = left + 's';
+      } else {
+        timer.textContent = 'Bereit';
+      }
     });
   }
 
@@ -350,20 +386,25 @@
   // ===== Game Loop (timers, patience, brewing) =====
   function tick() {
     const t = performance.now();
-    // Brewing -> Ready
-    state.counter.forEach(d => { if (d.status==='brewing' && t >= d.readyAt) d.status='ready'; });
-    // Customer patience
-    for (let i=state.customers.length-1; i>=0; i--) {
+    let needsRender = false;
+    state.counter.forEach((d) => {
+      if (d.status === 'brewing' && t >= d.readyAt) {
+        d.status = 'ready';
+        needsRender = true;
+      }
+    });
+    for (let i = state.customers.length - 1; i >= 0; i--) {
       const c = state.customers[i];
       if (t - c.start > c.patience) {
-        // customer leaves
-        state.customers.splice(i,1);
+        state.customers.splice(i, 1);
         state.mistakes += 1;
+        needsRender = true;
       }
     }
-    spawnCustomers();
-    render();
-  requestAnimationFrame(tick);
+    if (spawnCustomers()) needsRender = true;
+    if (needsRender) render();
+    updateLiveElements();
+    requestAnimationFrame(tick);
   }
 
   // ===== Init =====
