@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
-  <title>Coffee Rush — v0.8.0</title>
+  <title>Coffee Rush — v0.8.1</title>
   <meta name="description" content="Erste spielbare Version: One‑Finger Coffee‑Shop‑Spiel. Single‑File, offline‑fähig, keine Server‑Anbindung." />
   <style>
     :root{
@@ -17,17 +17,18 @@
     .wrap>header,
     .wrap>.section{flex-shrink:0;}
     .wrap>footer{margin-top:auto;}
-    header{display:flex; gap:8px; align-items:center; justify-content:space-between; background:var(--card); border:1px solid #46372f; border-radius:14px; padding:10px 12px; position:sticky; top:0; backdrop-filter:saturate(1.2) blur(6px); z-index:10}
-    header .title{font-weight:800; letter-spacing:.2px}
-    .stat{display:flex; gap:8px; align-items:center; font-variant-numeric:tabular-nums}
-    .pill{background:#3b2e27; border:1px solid #4a3a31; color:var(--ink); padding:4px 8px; border-radius:999px; font-weight:700}
+    header{display:flex; flex-wrap:wrap; gap:6px 10px; align-items:center; justify-content:space-between; background:var(--card); border:1px solid #46372f; border-radius:14px; padding:8px 10px; position:sticky; top:0; backdrop-filter:saturate(1.2) blur(6px); z-index:10}
+    header .title{font-weight:800; letter-spacing:.2px; font-size:18px; line-height:1.1}
+    .stat{display:flex; gap:6px; align-items:center; font-variant-numeric:tabular-nums; flex-wrap:wrap; justify-content:flex-end; flex:1 1 auto}
+    .pill{background:#3b2e27; border:1px solid #4a3a31; color:var(--ink); padding:4px 6px; border-radius:999px; font-weight:700; font-size:12px; line-height:1.1}
+    .pill b{font-size:14px;}
     .lives-pill{display:flex; align-items:center; gap:6px; white-space:nowrap;}
     .lives-heart-wrap{display:flex; gap:4px; align-items:center;}
     .life-heart{font-size:16px; line-height:1; transition:transform .15s ease, opacity .15s ease; display:inline-flex; filter:drop-shadow(0 0 2px rgba(0,0,0,0.3));}
     .life-heart.lost{opacity:0.35; transform:scale(0.85); filter:none;}
     .barista-pill b{font-size:14px;}
 
-    .section{background:var(--card); border:1px solid #46372f; border-radius:16px; padding:10px; margin-top:10px}
+    .section{background:var(--card); border:1px solid #46372f; border-radius:12px; padding:8px; margin-top:8px}
 
     .level-overlay{position:fixed; inset:0; background:rgba(26,18,14,0.92); display:flex; align-items:center; justify-content:center; padding:20px; z-index:999; backdrop-filter:blur(4px);}
     .level-overlay.hidden{display:none;}
@@ -35,6 +36,7 @@
     .game-over-overlay::before{content:""; position:absolute; inset:0; background-image:radial-gradient(2px 2px at 20px 40px, rgba(255,255,255,0.75), transparent), radial-gradient(1.6px 1.6px at 80px 120px, rgba(255,223,186,0.7), transparent), radial-gradient(1.8px 1.8px at 140px 60px, rgba(255,255,255,0.9), transparent); background-size:120px 120px, 180px 180px, 220px 220px; animation:twinkle 7s ease-in-out infinite; opacity:0.6; pointer-events:none;}
     .game-over-panel{position:relative; z-index:1;}
     .game-over-subtitle{margin:0 0 18px; color:var(--muted);}
+    .game-over-subtitle.fired{color:var(--bad); font-weight:800; font-size:26px; text-transform:uppercase; letter-spacing:.5px; text-shadow:0 0 18px rgba(255,139,167,0.35);}
     .game-over-score{display:flex; flex-direction:column; gap:12px; margin-bottom:22px; text-align:left;}
     .score-line{display:flex; justify-content:space-between; align-items:center; gap:24px; font-size:18px;}
     .score-line span{color:var(--muted); font-weight:600; letter-spacing:.2px;}
@@ -105,8 +107,8 @@
     .customer.leaving-angry{box-shadow:0 0 0 2px #ff8ba766 inset;}
 
     /* Tresen */
-    .counter{display:grid; gap:10px; grid-template-columns:repeat(3,minmax(0,1fr))}
-    .slot{min-height:134px; background:#2b201b; border:1px solid #43352d; border-radius:14px; padding:10px; position:relative; display:flex; flex-direction:column; gap:8px; cursor:pointer; transition:transform .08s ease, box-shadow .12s ease; align-items:center;}
+    .counter{display:grid; gap:8px; grid-template-columns:repeat(3,minmax(0,1fr))}
+    .slot{min-height:128px; background:#2b201b; border:1px solid #43352d; border-radius:12px; padding:8px; position:relative; display:flex; flex-direction:column; gap:6px; cursor:pointer; transition:transform .08s ease, box-shadow .12s ease; align-items:center;}
     .slot.empty{border-style:dashed; border-color:#4a3a31; color:var(--muted); align-items:center; justify-content:center; text-align:center; font-size:12px; cursor:default}
     .slot.empty:hover{transform:none}
     .slot-placeholder{opacity:0.7; min-height:2.6em; display:flex; align-items:center; justify-content:center; padding:0 6px; text-align:center; white-space:normal; overflow-wrap:break-word; word-break:break-word;}
@@ -126,7 +128,7 @@
     .btn:disabled{opacity:0.4; cursor:default; transform:none;}
 
     /* Auswahl & Buttons */
-    .brew-bar{display:flex; gap:10px; align-items:center; margin-top:12px}
+    .brew-bar{display:flex; gap:8px; align-items:center; margin-top:10px}
     .selection{flex:1; display:flex; gap:6px; flex-wrap:wrap; min-height:44px; align-items:center}
     .selection-empty{font-size:12px; color:var(--muted)}
     .chip{font-size:18px; background:#3a2c25; border:1px solid #4a3a31; border-radius:10px; padding:4px 8px}
@@ -134,7 +136,9 @@
     .chip-selectable:hover{background:#47372f}
     .chip-selectable:active{transform:scale(0.97)}
     .chip-selectable:focus-visible{outline:2px solid var(--accent); outline-offset:2px}
-    .btns{display:grid; grid-template-columns: repeat(3, 1fr); gap:8px; margin-top:10px}
+    .btns{display:flex; gap:6px; margin-top:6px; flex-wrap:nowrap}
+    .ingredient-btn{flex:1 1 0; min-width:0; padding:8px 4px; font-size:13px; border-radius:10px; line-height:1.1}
+    .ingredient-label{display:block; font-size:10px; opacity:0.75; margin-top:2px}
     .btn{appearance:none; border:1px solid #5a463b; background:linear-gradient(#4b3a31,#3c2f28); color:var(--ink); padding:14px 12px; border-radius:14px; font-weight:800; font-size:18px; text-align:center; cursor:pointer; user-select:none}
     .btn:active{transform:translateY(1px) scale(.99)}
     .btn.primary{border-color:#8a6a54; background:linear-gradient(#a07756,#7e5c45);}
@@ -145,6 +149,11 @@
     footer{margin:14px 0; text-align:center; color:var(--muted); font-size:12px}
     .hint{font-size:12px; color:var(--muted);}
     .sel{outline:2px solid var(--accent)}
+
+    @media (min-width: 420px) {
+      header{flex-wrap:nowrap;}
+      .stat{flex-wrap:nowrap;}
+    }
   </style>
 </head>
 <body>
@@ -162,7 +171,7 @@
   <div class="level-overlay hidden game-over-overlay" id="gameOverOverlay" aria-live="polite">
     <div class="level-panel game-over-panel">
       <h1>Game Over</h1>
-      <p class="game-over-subtitle">Keine Leben mehr – deine Schicht ist vorüber.</p>
+      <p class="game-over-subtitle fired">Du bist gefeuert!</p>
       <div class="game-over-score">
         <div class="score-line"><span>Score</span><b id="finalScore">0</b></div>
         <div class="score-line"><span>Highscore</span><b id="highScore">0</b></div>
@@ -191,18 +200,15 @@
     <!-- Tresen -->
     <section class="section">
       <div class="counter" id="counter"></div>
-      <div class="hint" style="margin-top:6px">Tippe ein fertiges Getränk, dann den passenden Kunden.</div>
     </section>
 
     <!-- Auswahl & Buttons -->
     <section class="section">
-      <div class="hint">Zutaten auswählen (Reihenfolge egal):</div>
       <div class="btns" id="ingredients"></div>
       <div class="brew-bar">
         <div class="selection" id="selection"></div>
         <button id="btnBrew" class="btn primary">☕ ZUBEREITEN</button>
       </div>
-      <div class="hint" style="margin-top:6px">Nicht jedes Rezept hat gleich viele Schritte. Falsche Kombinationen werden abgelehnt.</div>
     </section>
 
     <footer>Version <span id="versionFooter"></span> • Single‑File • Läuft komplett lokal • Touch‑optimiert</footer>
@@ -211,7 +217,7 @@
 <script>
 (() => {
   // ===== Config =====
-  const VERSION = 'v0.8.0';
+  const VERSION = 'v0.8.1';
   const MAX_CUSTOMERS = 3;
   const MAX_COUNTER_SLOTS = 3;
   const MAX_SELECTION = 3;
@@ -990,11 +996,11 @@
   function setupIngredients() {
     const grid = $('#ingredients');
     INGREDIENTS.forEach(ing => {
-      const b = el('button','btn');
+      const b = el('button','btn ingredient-btn');
       b.type = 'button';
       b.dataset.ingKey = ing.key;
       b.textContent = ing.label + ' ';
-      const small = el('small'); small.textContent = ing.name; small.style.display='block'; small.style.fontSize='12px'; small.style.opacity='0.8';
+      const small = el('small','ingredient-label'); small.textContent = ing.name;
       b.append(small);
       b.addEventListener('click', () => {
         if (state.selection.length >= MAX_SELECTION) return;
