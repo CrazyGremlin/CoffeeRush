@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
-  <title>Coffee Rush — v0.9.0</title>
+  <title>Coffee Rush — v0.9.1</title>
   <meta name="description" content="Erste spielbare Version: One‑Finger Coffee‑Shop‑Spiel. Single‑File, offline‑fähig, keine Server‑Anbindung." />
   <style>
     :root{
@@ -26,12 +26,16 @@
     .lives-heart-wrap{display:flex; gap:4px; align-items:center;}
     .life-heart{font-size:16px; line-height:1; transition:transform .15s ease, opacity .15s ease; display:inline-flex; filter:drop-shadow(0 0 2px rgba(0,0,0,0.3));}
     .life-heart.lost{opacity:0.35; transform:scale(0.85); filter:none;}
-    .barista-pill b{font-size:14px;}
-    .multiplier-pill{display:flex; flex-direction:column; align-items:flex-start; gap:2px; min-width:96px;}
-    .multiplier-pill .multiplier-label{font-size:11px; font-weight:600; letter-spacing:.4px; text-transform:uppercase; opacity:0.75;}
-    .multiplier-pill .multiplier-value{font-size:20px; line-height:1;}
-    .multiplier-pill .multiplier-cooldown{font-size:11px; color:var(--muted); font-weight:600;}
-    .multiplier-pill .multiplier-cooldown b{font-size:12px; color:var(--ink); font-variant-numeric:tabular-nums;}
+    .multiplier-pill{display:flex; flex-direction:column; gap:6px; min-width:0; padding:6px 8px; align-items:stretch; flex:1 1 220px;}
+    .multiplier-line{display:flex; gap:8px; align-items:baseline; font-weight:700; font-size:12px; width:100%;}
+    .multiplier-value{font-size:22px; line-height:1; white-space:nowrap; font-weight:800;}
+    .score-wrap{display:flex; gap:4px; align-items:baseline; margin-left:auto; min-width:0; font-size:12px; justify-content:flex-end;}
+    .score-wrap-label{opacity:0.8; font-size:11px; text-transform:uppercase; letter-spacing:.3px;}
+    #score{font-size:clamp(16px, 5vw, 24px); line-height:1; white-space:nowrap; font-variant-numeric:tabular-nums; text-align:right;}
+    .multiplier-bar{height:4px; background:#3a2c25; border:1px solid #4a3a31; border-radius:999px; overflow:hidden; position:relative;}
+    .multiplier-bar>i{display:block; height:100%; width:100%; background:linear-gradient(90deg, var(--accent), #f4c27a); transform-origin:right; transform:scaleX(0); transition:transform .12s linear;}
+    .multiplier-rank{font-size:12px; color:var(--muted); font-weight:600; line-height:1.2; white-space:normal; word-break:break-word; text-wrap:balance;}
+    .sr-only{position:absolute; width:1px; height:1px; padding:0; margin:-1px; overflow:hidden; clip:rect(0,0,0,0); white-space:nowrap; border:0;}
 
     .section{background:var(--card); border:1px solid #46372f; border-radius:12px; padding:8px; margin-top:8px}
 
@@ -190,15 +194,22 @@
       <div class="title">☕ Coffee Rush</div>
       <div class="stat">
         <span class="pill multiplier-pill" aria-live="polite">
-          <span class="multiplier-label">Multiplikator</span>
-          <span class="multiplier-value" id="multiplierValue">x1</span>
-          <span class="multiplier-cooldown">Reset in <b id="multiplierCooldown">—</b></span>
+          <span class="multiplier-line">
+            <span class="multiplier-value" id="multiplierValue">x1</span>
+            <span class="score-wrap">
+              <span class="score-wrap-label">Score</span>
+              <b id="score">0</b>
+            </span>
+          </span>
+          <span class="multiplier-bar" aria-hidden="true">
+            <i id="multiplierCooldownBar"></i>
+          </span>
+          <span class="sr-only" id="multiplierCooldown" aria-live="polite">—</span>
+          <span class="multiplier-rank" id="baristaRank">Rookie Barista</span>
         </span>
-        <span class="pill">Score: <b id="score">0</b></span>
         <span class="pill lives-pill">Leben:
           <span id="lives" class="lives-heart-wrap" aria-live="polite" aria-label="Verbleibende Leben"></span>
         </span>
-        <span class="pill barista-pill">Barista: <b id="baristaRank">Rookie Barista</b></span>
       </div>
     </header>
 
@@ -227,7 +238,7 @@
 <script>
 (() => {
   // ===== Config =====
-  const VERSION = 'v0.9.0';
+  const VERSION = 'v0.9.1';
   const MAX_CUSTOMERS = 3;
   const MAX_COUNTER_SLOTS = 3;
   const MAX_SELECTION = 3;
@@ -245,6 +256,7 @@
     'Café-Direktor',
     'Galaktischer Barista',
   ];
+  const NUMBER_FORMAT = new Intl.NumberFormat('de-DE');
   const PATIENCE_SECONDS_BY_HEART = new Map([
     [5, 8],
     [4, 7],
@@ -360,16 +372,20 @@
 
   function updateMultiplierDisplay(nowT = performance.now()) {
     const multiplierEl = document.getElementById('multiplierValue');
-    const cooldownEl = document.getElementById('multiplierCooldown');
-    if (!multiplierEl || !cooldownEl) return;
+    const cooldownLabel = document.getElementById('multiplierCooldown');
+    const cooldownBar = document.getElementById('multiplierCooldownBar');
+    if (!multiplierEl) return;
     const currentMultiplier = Math.max(1, state.multiplier || 1);
     multiplierEl.textContent = `x${currentMultiplier}`;
+    let ratio = 0;
     if (state.multiplier > 1 && state.multiplierCooldownUntil) {
       const remain = Math.max(0, state.multiplierCooldownUntil - nowT);
-      cooldownEl.textContent = `${(remain / 1000).toFixed(1)}s`;
-    } else {
-      cooldownEl.textContent = '—';
+      ratio = Math.max(0, Math.min(1, remain / MULTIPLIER_COOLDOWN_MS));
+      if (cooldownLabel) cooldownLabel.textContent = `${(remain / 1000).toFixed(1)} Sekunden Restzeit`;
+    } else if (cooldownLabel) {
+      cooldownLabel.textContent = 'Kein Cooldown aktiv';
     }
+    if (cooldownBar) cooldownBar.style.transform = `scaleX(${ratio})`;
   }
 
   // ===== Utilities =====
@@ -662,7 +678,8 @@
   }
   // ===== Rendering =====
   function render() {
-    $('#score').textContent = state.score;
+    const scoreEl = $('#score');
+    if (scoreEl) scoreEl.textContent = NUMBER_FORMAT.format(Math.max(0, state.score || 0));
     const livesEl = $('#lives');
     if (livesEl) {
       livesEl.innerHTML = '';
@@ -675,7 +692,12 @@
       }
     }
     const rankEl = $('#baristaRank');
-    if (rankEl) rankEl.textContent = baristaTitleForScore(state.score);
+    if (rankEl) {
+      const title = baristaTitleForScore(state.score);
+      rankEl.textContent = title;
+      rankEl.setAttribute('aria-label', `Barista-Titel: ${title}`);
+      rankEl.setAttribute('title', title);
+    }
     const nowRender = performance.now();
     updateMultiplierDisplay(nowRender);
 
@@ -1106,8 +1128,8 @@
     const best = Math.max(finalScore, state.highscore || 0);
     state.highscore = best;
     persistHighscore(best);
-    if (finalScoreEl) finalScoreEl.textContent = finalScore;
-    if (highScoreEl) highScoreEl.textContent = best;
+    if (finalScoreEl) finalScoreEl.textContent = NUMBER_FORMAT.format(Math.max(0, finalScore || 0));
+    if (highScoreEl) highScoreEl.textContent = NUMBER_FORMAT.format(Math.max(0, best || 0));
     if (baristaTitleEl) baristaTitleEl.textContent = baristaTitleForScore(finalScore);
     if (gameOverOverlay) gameOverOverlay.classList.remove('hidden');
     state.started = false;
